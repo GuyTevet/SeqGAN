@@ -133,9 +133,32 @@ class Dis_dataloader_text8(Dis_dataloader):
         self.seq_len = 20
 
     def load_train_data(self, positive_file, negative_file):
-        # Load data
-        # positive_examples = []
-        # negative_examples = []
+
+        # #LOAD NEGATIVE
+        # positive file is constant while negative file is changed during train!
+        # if os.path.exists(negative_file + '.npy'):
+        #     negative_examples = np.load(negative_file + '.npy')
+        # else:
+        negative_examples = []
+
+        # remove \n
+        with open(negative_file, 'r') as f:
+            all_negative = f.read()
+        with open(negative_file, 'w') as f:
+            f.write(all_negative.replace('\n',''))
+
+        with open(negative_file, 'r') as f:
+            line = f.read(self.seq_len)
+            while len(line) == self.seq_len:
+                tokens = [int(self.charmap[char]) for char in line]
+                assert len(tokens) == self.seq_len
+                negative_examples.append(tokens)
+
+                line = f.read(self.seq_len)
+
+        # np.save(negative_file,np.array(negative_examples))
+        negative_examples = np.array(negative_examples)
+        num_positive_samples = negative_examples.shape[0]
 
 
         #LOAD POSITIVE
@@ -155,28 +178,9 @@ class Dis_dataloader_text8(Dis_dataloader):
 
             np.save(positive_file,np.array(positive_examples))
 
-        #LOAD NEGATIVE
-        if os.path.exists(negative_file + '.npy'):
-            negative_examples = np.load(negative_file + '.npy')
-        else:
-            negative_examples = []
-
-            # remove \n
-            with open(negative_file, 'r') as f:
-                all_negative = f.read()
-            with open(negative_file, 'w') as f:
-                f.write(all_negative.replace('\n',''))
-
-            with open(negative_file, 'r') as f:
-                line = f.read(self.seq_len)
-                while len(line) == self.seq_len:
-                    tokens = [int(self.charmap[char]) for char in line]
-                    assert len(tokens) == self.seq_len
-                    negative_examples.append(tokens)
-
-                    line = f.read(self.seq_len)
-
-            np.save(negative_file,np.array(negative_examples))
+        #choose only num_positive_samples from them
+        permut = np.random.permutation(positive_examples.shape[0])[:num_positive_samples]
+        positive_examples = positive_examples[permut]
 
         # CONCAT
         negative_examples = np.array(negative_examples)
@@ -189,10 +193,11 @@ class Dis_dataloader_text8(Dis_dataloader):
         negative_labels = [[1, 0]] * negative_examples.shape[0]
         self.labels = np.concatenate([positive_labels, negative_labels], 0)
 
-        # Shuffle the data
-        shuffle_indices = np.random.permutation(self.sentences.shape[0])
-        self.sentences = self.sentences[shuffle_indices]
-        self.labels = self.labels[shuffle_indices]
+        # # Shuffle the data
+        # print "DISC shuffling data..."
+        # shuffle_indices = np.random.permutation(self.sentences.shape[0])
+        # self.sentences = self.sentences[shuffle_indices]
+        # self.labels = self.labels[shuffle_indices]
 
         # Split batches
         self.num_batch = int(len(self.labels) / self.batch_size)
@@ -203,12 +208,15 @@ class Dis_dataloader_text8(Dis_dataloader):
 
         self.pointer = 0
 
+        print "done create_batches - [num_batch=%0d]"%self.num_batch
+
     def reset_pointer(self):
         self.shuffle()
         self.pointer = 0
 
     def shuffle(self):
         print "DISC shuffling data..."
-        permut = np.random.permutation(self.token_stream.shape[0])
-        self.token_stream = self.token_stream[permut]
+        shuffle_indices = np.random.permutation(self.sentences.shape[0])
+        self.sentences = self.sentences[shuffle_indices]
+        self.labels = self.labels[shuffle_indices]
 

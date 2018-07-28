@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import random
-from dataloader import Gen_Data_loader, Gen_Data_loader_text8, Dis_dataloader
+from dataloader import Gen_Data_loader, Gen_Data_loader_text8, Dis_dataloader, Dis_dataloader_text8
 from generator import Generator
 from discriminator import Discriminator
 from rollout import ROLLOUT
@@ -19,8 +19,8 @@ EMB_DIM = 32 # embedding dimension
 HIDDEN_DIM = 32 # hidden state dimension of lstm cell
 SEQ_LENGTH = 20 # sequence length
 START_TOKEN = 0
-PRE_EPOCH_NUM = 5 # 120 # supervise (maximum likelihood estimation) epochs for generator
-DISC_PRE_EPOCH_NUM = 0 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
+PRE_EPOCH_NUM = 1 # 120 # supervise (maximum likelihood estimation) epochs for generator
+DISC_PRE_EPOCH_NUM = 1 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
 SEED = 88
 BATCH_SIZE = 64
 
@@ -37,11 +37,11 @@ dis_batch_size = 64
 #########################################################################################
 #  Basic Training Parameters
 #########################################################################################
-TOTAL_BATCH = 0 #200 #num of adversarial epochs
+TOTAL_BATCH = 1 #200 #num of adversarial epochs
 positive_file = 'save/real_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
-generated_num = 10000
+generated_num = 100000 # 10000
 
 #########################################################################################
 #  Data configurations
@@ -51,9 +51,10 @@ real_data_file_path = './data/text8'
 
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
+    print 'Generating samples...'
     # Generate Samples
     generated_samples = []
-    for _ in range(int(generated_num / batch_size)):
+    for _ in tqdm(range(int(generated_num / batch_size))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -63,8 +64,9 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
 
 def generate_real_data_samples(sess, trainable_model, batch_size, generated_num, output_file, inv_charmap):
     # Generate Samples
+    print 'Generating real data samples...'
     generated_samples = []
-    for _ in range(int(generated_num / batch_size)):
+    for _ in tqdm(range(int(generated_num / batch_size))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -197,16 +199,14 @@ def main():
         real_data_dict_file = real_data_file_path + '-dict.json'
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
-
         charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-
         gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
+        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap)
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
         vocab_size = 5000
-
-    dis_data_loader = Dis_dataloader(BATCH_SIZE)
+        dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
@@ -234,6 +234,7 @@ def main():
     print 'Start pre-training...'
     log.write('pre-training...\n')
     for epoch in xrange(PRE_EPOCH_NUM):
+        print "start epoch %0d" % epoch
         loss = pre_train_epoch(sess, generator, gen_data_loader)
         if epoch % 1 == 0:
             if use_real_world_data:
@@ -250,16 +251,17 @@ def main():
 
     print 'Start pre-training discriminator...'
     # Train 3 epoch on the generated data and do this for 50 times
-    for _ in range(DISC_PRE_EPOCH_NUM):
+    for epoch in range(DISC_PRE_EPOCH_NUM):
+        print "start epoch %0d"%epoch
         if use_real_world_data:
-            generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, negative_file,inv_charmap)
+            generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num , negative_file,inv_charmap)
+            dis_data_loader.load_train_data(real_data_train_file, negative_file)
         else:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-
-        dis_data_loader.load_train_data(positive_file, negative_file)
+            dis_data_loader.load_train_data(positive_file, negative_file)
         for _ in range(3):
             dis_data_loader.reset_pointer()
-            for it in xrange(dis_data_loader.num_batch):
+            for it in tqdm(xrange(dis_data_loader.num_batch)):
                 x_batch, y_batch = dis_data_loader.next_batch()
                 feed = {
                     discriminator.input_x: x_batch,
@@ -296,12 +298,17 @@ def main():
 
         # Train the discriminator
         for _ in range(5):
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-            dis_data_loader.load_train_data(positive_file, negative_file)
+
+            if use_real_world_data:
+                generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, negative_file, inv_charmap)
+                dis_data_loader.load_train_data(real_data_train_file, negative_file)
+            else:
+                generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
+                dis_data_loader.load_train_data(positive_file, negative_file)
 
             for _ in range(3):
                 dis_data_loader.reset_pointer()
-                for it in xrange(dis_data_loader.num_batch):
+                for it in tqdm(xrange(dis_data_loader.num_batch)):
                     x_batch, y_batch = dis_data_loader.next_batch()
                     feed = {
                         discriminator.input_x: x_batch,
@@ -312,7 +319,9 @@ def main():
 
     print '#########################################################################'
     print 'Start Language Model Evaluation...'
-    language_model_evaluation(sess,generator, gen_data_loader) #FIXME: use test data handler instead
+    test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
+    test_data_loader.create_batches(real_data_test_file)
+    language_model_evaluation(sess,generator, test_data_loader)
 
     log.close()
 
