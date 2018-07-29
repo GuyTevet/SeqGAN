@@ -56,6 +56,7 @@ class Gen_Data_loader_text8(Gen_Data_loader):
 
         if limit_num_samples is not None:
             # choose only limit_num_samples from them
+            self.token_stream = np.array(self.token_stream)
             permut = np.random.permutation(self.token_stream.shape[0])[:limit_num_samples]
             self.token_stream = self.token_stream[permut]
         else:
