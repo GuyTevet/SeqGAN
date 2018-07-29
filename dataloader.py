@@ -66,14 +66,14 @@ class Gen_Data_loader_text8(Gen_Data_loader):
         self.sequence_batch = np.split(np.array(self.token_stream), self.num_batch, 0)
         self.pointer = 0
 
-        print "done create_batches - [num_batch=%0d]"%self.num_batch
+        print("done create_batches - [num_batch=%0d]"%self.num_batch)
 
     def reset_pointer(self):
         self.shuffle()
         self.pointer = 0
 
     def shuffle(self):
-        print "GEN shuffling data..."
+        print("GEN shuffling data...")
         permut = np.random.permutation(self.token_stream.shape[0])
         self.token_stream = self.token_stream[permut]
 
@@ -215,14 +215,14 @@ class Dis_dataloader_text8(Dis_dataloader):
 
         self.pointer = 0
 
-        print "done create_batches - [num_batch=%0d]"%self.num_batch
+        print("done create_batches - [num_batch=%0d]"%self.num_batch)
 
     def reset_pointer(self):
         self.shuffle()
         self.pointer = 0
 
     def shuffle(self):
-        print "DISC shuffling data..."
+        print("DISC shuffling data...")
         shuffle_indices = np.random.permutation(self.sentences.shape[0])
         self.sentences = self.sentences[shuffle_indices]
         self.labels = self.labels[shuffle_indices]

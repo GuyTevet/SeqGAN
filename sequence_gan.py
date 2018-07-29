@@ -6,7 +6,7 @@ from generator import Generator
 from discriminator import Discriminator
 from rollout import ROLLOUT
 from target_lstm import TARGET_LSTM
-import cPickle
+import pickle
 import os
 import collections
 import json
@@ -42,7 +42,7 @@ TOTAL_BATCH = 200 #200 #num of adversarial epochs
 positive_file = 'save/real_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
-generated_num = 100000 # 10000
+generated_num = 10000 # 10000
 
 #########################################################################################
 #  Data configurations
@@ -52,10 +52,10 @@ real_data_file_path = './data/text8'
 
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
-    print 'Generating samples...'
+    print('Generating samples...')
     # Generate Samples
     generated_samples = []
-    for _ in tqdm(range(int(generated_num / batch_size))):
+    for _ in tqdm(list(range(int(generated_num / batch_size)))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -65,9 +65,9 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
 
 def generate_real_data_samples(sess, trainable_model, batch_size, generated_num, output_file, inv_charmap):
     # Generate Samples
-    print 'Generating real data samples...'
+    print('Generating real data samples...')
     generated_samples = []
-    for _ in tqdm(range(int(generated_num / batch_size))):
+    for _ in tqdm(list(range(int(generated_num / batch_size)))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -82,7 +82,7 @@ def target_loss(sess, target_lstm, data_loader):
     nll = []
     data_loader.reset_pointer()
 
-    for it in xrange(data_loader.num_batch):
+    for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
         g_loss = sess.run(target_lstm.pretrain_loss, {target_lstm.x: batch})
         nll.append(g_loss)
@@ -95,7 +95,7 @@ def pre_train_epoch(sess, trainable_model, data_loader):
     supervised_g_losses = []
     data_loader.reset_pointer()
 
-    for it in tqdm(xrange(data_loader.num_batch)):
+    for it in tqdm(range(data_loader.num_batch)):
         batch = data_loader.next_batch()
         _, g_loss = trainable_model.pretrain_step(sess, batch)
         supervised_g_losses.append(g_loss)
@@ -156,7 +156,7 @@ def create_real_data_dict(data_file, dict_file):
             charmap = json.loads(f.read())
 
         inv_charmap = [None] * len(charmap)
-        for key in charmap.keys():
+        for key in list(charmap.keys()):
             inv_charmap[int(charmap[key])] = str(key)
 
     return charmap, inv_charmap
@@ -188,7 +188,7 @@ def main():
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
     if not use_real_world_data:
-        target_params = cPickle.load(open('save/target_params.pkl'))
+        target_params = pickle.load(open('save/target_params.pkl'))
         target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
     discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
@@ -210,10 +210,10 @@ def main():
 
     log = open('save/experiment-log.txt', 'w')
     #  pre-train generator
-    print 'Start pre-training...'
+    print('Start pre-training...')
     log.write('pre-training...\n')
-    for epoch in xrange(PRE_EPOCH_NUM):
-        print "start epoch %0d" % epoch
+    for epoch in range(PRE_EPOCH_NUM):
+        print("start epoch %0d" % epoch)
 
         if use_real_world_data:
             gen_data_loader.create_batches(real_data_train_file,limit_num_samples=generated_num)
@@ -228,14 +228,14 @@ def main():
                 likelihood_data_loader.create_batches(eval_file)
                 test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
 
-            print 'pre-train epoch ', epoch, 'test_loss ', test_loss
+            print('pre-train epoch ', epoch, 'test_loss ', test_loss)
             buffer = 'epoch:\t'+ str(epoch) + '\tnll:\t' + str(test_loss) + '\n'
             log.write(buffer)
 
-    print 'Start pre-training discriminator...'
+    print('Start pre-training discriminator...')
     # Train 3 epoch on the generated data and do this for 50 times
     for epoch in range(DISC_PRE_EPOCH_NUM):
-        print "start epoch %0d"%epoch
+        print("start epoch %0d"%epoch)
         if use_real_world_data:
             generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num , negative_file,inv_charmap)
             dis_data_loader.load_train_data(real_data_train_file, negative_file)
@@ -244,7 +244,7 @@ def main():
             dis_data_loader.load_train_data(positive_file, negative_file)
         for _ in range(3):
             dis_data_loader.reset_pointer()
-            for it in tqdm(xrange(dis_data_loader.num_batch)):
+            for it in tqdm(range(dis_data_loader.num_batch)):
                 x_batch, y_batch = dis_data_loader.next_batch()
                 feed = {
                     discriminator.input_x: x_batch,
@@ -255,11 +255,13 @@ def main():
 
     rollout = ROLLOUT(generator, 0.8)
 
-    print '#########################################################################'
-    print 'Start Adversarial Training...'
+    print('#########################################################################')
+    print('Start Adversarial Training...')
     log.write('adversarial training...\n')
     for total_batch in range(TOTAL_BATCH):
         # Train the generator for one step
+        print("start epoch %0d" % total_batch)
+
         for it in range(1):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
@@ -273,7 +275,7 @@ def main():
                 likelihood_data_loader.create_batches(eval_file)
                 test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
                 buffer = 'epoch:\t' + str(total_batch) + '\tnll:\t' + str(test_loss) + '\n'
-                print 'total_batch: ', total_batch, 'test_loss: ', test_loss
+                print('total_batch: ', total_batch, 'test_loss: ', test_loss)
                 log.write(buffer)
 
         # Update roll-out parameters
@@ -291,7 +293,7 @@ def main():
 
             for _ in range(3):
                 dis_data_loader.reset_pointer()
-                for it in tqdm(xrange(dis_data_loader.num_batch)):
+                for it in tqdm(range(dis_data_loader.num_batch)):
                     x_batch, y_batch = dis_data_loader.next_batch()
                     feed = {
                         discriminator.input_x: x_batch,
@@ -300,8 +302,8 @@ def main():
                     }
                     _ = sess.run(discriminator.train_op, feed)
 
-    print '#########################################################################'
-    print 'saving model...'
+    print('#########################################################################')
+    print('saving model...')
     save_file = os.path.join('.','ckp',EXPERIMENT_NAME,EXPERIMENT_NAME)
     saver.save(sess, save_file)
 

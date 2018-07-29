@@ -6,7 +6,7 @@ from generator import Generator
 from discriminator import Discriminator
 from rollout import ROLLOUT
 from target_lstm import TARGET_LSTM
-import cPickle
+import pickle
 import os
 import collections
 import json
@@ -25,7 +25,7 @@ def convergence_experiment(sess, tested_model, data_loader):
     pred = np.zeros([BATCH_SIZE, SEQ_LENGTH, tested_model.num_emb], dtype=np.float32)
 
 
-    for i in xrange(N):
+    for i in range(N):
         pred_one_hot, real_pred = tested_model.language_model_eval_step(sess, batch)
         pred += pred_one_hot
 
@@ -37,13 +37,13 @@ def language_model_evaluation(sess, tested_model, data_loader):
 
     data_loader.reset_pointer()
 
-    for it in xrange(data_loader.num_batch):
+    for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
         N = 1000 # hard coded for the meantime
 
         # estimate probability vectors for batch
         pred = np.zeros([BATCH_SIZE,SEQ_LENGTH,tested_model.num_emb],dtype=np.float32)
-        for i in xrange(N):
+        for i in range(N):
             pred_one_hot, real_pred = tested_model.language_model_eval_step(sess, batch)
             pred += real_pred # pred_one_hot
         pred = pred / (N * 1.)
@@ -52,8 +52,8 @@ def language_model_evaluation(sess, tested_model, data_loader):
         eps = 1e-20
 
         #calc bit per char
-        BPC = np.average([-np.log2(pred_flat[i,batch_flat[i]] + eps) for i in xrange(pred_flat.shape[0])])
-        print BPC
+        BPC = np.average([-np.log2(pred_flat[i,batch_flat[i]] + eps) for i in range(pred_flat.shape[0])])
+        print(str(BPC))
 
     return BPC
 
@@ -83,7 +83,7 @@ def main():
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
     if not use_real_world_data:
-        target_params = cPickle.load(open('save/target_params.pkl'))
+        target_params = pickle.load(open('save/target_params.pkl'))
         target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
     discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
@@ -94,8 +94,8 @@ def main():
     sess = tf.Session(config=config)
     # sess.run(tf.global_variables_initializer())
 
-    print '#########################################################################'
-    print 'loading model [%0s]...'%EXPERIMENT_NAME
+    print('#########################################################################')
+    print('loading model [%0s]...'%EXPERIMENT_NAME)
 
     save_file = os.path.join('.', 'ckp', EXPERIMENT_NAME, EXPERIMENT_NAME)
     reader = tf.train.NewCheckpointReader(save_file)
@@ -111,15 +111,15 @@ def main():
             if var_shape == saved_shapes[saved_var_name]:
                 restore_vars.append(curr_var)
             else:
-                print("Not loading: %s." % saved_var_name)
+                print(("Not loading: %s." % saved_var_name))
     saver = tf.train.Saver(restore_vars)
     print ("Restoring vars:")
     print (restore_vars)
     saver.restore(sess, save_file)
 
 
-    print '#########################################################################'
-    print 'Start Language Model Evaluation...'
+    print('#########################################################################')
+    print('Start Language Model Evaluation...')
     test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
     test_data_loader.create_batches(real_data_test_file)
     language_model_evaluation(sess,generator, test_data_loader)
