@@ -36,7 +36,7 @@ class Gen_Data_loader_text8(Gen_Data_loader):
         self.charmap, self.inv_charmap = charmap, inv_charmap
         self.seq_len = 20
 
-    def create_batches(self, data_file):
+    def create_batches(self, data_file, limit_num_samples=None):
 
         if os.path.exists(data_file + '.npy'):
             self.token_stream = np.load(data_file + '.npy')
@@ -53,6 +53,13 @@ class Gen_Data_loader_text8(Gen_Data_loader):
                     line = f.read(self.seq_len)
 
             np.save(data_file,np.array(self.token_stream))
+
+        if limit_num_samples is not None:
+            # choose only limit_num_samples from them
+            permut = np.random.permutation(self.token_stream.shape[0])[:limit_num_samples]
+            self.token_stream = self.token_stream[permut]
+        else:
+            self.token_stream = np.array(self.token_stream)
 
         self.num_batch = int(len(self.token_stream) / self.batch_size)
         self.token_stream = self.token_stream[:self.num_batch * self.batch_size]

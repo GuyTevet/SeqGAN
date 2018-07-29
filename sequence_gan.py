@@ -19,8 +19,8 @@ EMB_DIM = 32 # embedding dimension
 HIDDEN_DIM = 32 # hidden state dimension of lstm cell
 SEQ_LENGTH = 20 # sequence length
 START_TOKEN = 0
-PRE_EPOCH_NUM = 1 # 120 # supervise (maximum likelihood estimation) epochs for generator
-DISC_PRE_EPOCH_NUM = 1 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
+PRE_EPOCH_NUM = 120 # 120 # supervise (maximum likelihood estimation) epochs for generator
+DISC_PRE_EPOCH_NUM = 50 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
 SEED = 88
 BATCH_SIZE = 64
 
@@ -37,7 +37,8 @@ dis_batch_size = 64
 #########################################################################################
 #  Basic Training Parameters
 #########################################################################################
-TOTAL_BATCH = 1 #200 #num of adversarial epochs
+EXPERIMENT_NAME = 'regular_120_50_200'
+TOTAL_BATCH = 200 #200 #num of adversarial epochs
 positive_file = 'save/real_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
@@ -100,30 +101,6 @@ def pre_train_epoch(sess, trainable_model, data_loader):
         supervised_g_losses.append(g_loss)
 
     return np.mean(supervised_g_losses)
-
-def language_model_evaluation(sess, tested_model, data_loader):
-
-    data_loader.reset_pointer()
-
-    for it in xrange(data_loader.num_batch):
-        batch = data_loader.next_batch()
-        N = 1000 # hard coded for the meantime
-
-        # estimate probability vectors for batch
-        pred = np.zeros([BATCH_SIZE,SEQ_LENGTH,tested_model.num_emb],dtype=np.float32)
-        for i in xrange(N):
-            pred_one_hot, real_pred = tested_model.language_model_eval_step(sess, batch)
-            pred += pred_one_hot
-        pred = pred / (N * 1.)
-        pred_flat = np.reshape(pred,[BATCH_SIZE * SEQ_LENGTH,tested_model.num_emb])
-        batch_flat = np.reshape(batch,[BATCH_SIZE * SEQ_LENGTH])
-        eps = 1e-10
-
-        #calc bit per char
-        BPC = np.average([-np.log2(pred_flat[i,batch_flat[i]] + eps) for i in xrange(pred_flat.shape[0])])
-        print BPC
-
-    return BPC
 
 def split_text8(text8_orig_path):
 
@@ -214,16 +191,18 @@ def main():
         target_params = cPickle.load(open('save/target_params.pkl'))
         target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
-    discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim, 
+    discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
                                 filter_sizes=dis_filter_sizes, num_filters=dis_num_filters, l2_reg_lambda=dis_l2_reg_lambda)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
+    saver = tf.train.Saver(tf.trainable_variables())
     sess.run(tf.global_variables_initializer())
 
     if use_real_world_data:
-        gen_data_loader.create_batches(real_data_train_file)
+        # gen_data_loader.create_batches(real_data_train_file)
+        pass
     else:
         # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
         generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, positive_file)
@@ -235,6 +214,10 @@ def main():
     log.write('pre-training...\n')
     for epoch in xrange(PRE_EPOCH_NUM):
         print "start epoch %0d" % epoch
+
+        if use_real_world_data:
+            gen_data_loader.create_batches(real_data_train_file,limit_num_samples=generated_num)
+
         loss = pre_train_epoch(sess, generator, gen_data_loader)
         if epoch % 1 == 0:
             if use_real_world_data:
@@ -318,10 +301,16 @@ def main():
                     _ = sess.run(discriminator.train_op, feed)
 
     print '#########################################################################'
-    print 'Start Language Model Evaluation...'
-    test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
-    test_data_loader.create_batches(real_data_test_file)
-    language_model_evaluation(sess,generator, test_data_loader)
+    print 'saving model...'
+    save_file = os.path.join('.','ckp',EXPERIMENT_NAME,EXPERIMENT_NAME)
+    saver.save(sess, save_file)
+
+    #
+    # print '#########################################################################'
+    # print 'Start Language Model Evaluation...'
+    # test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
+    # test_data_loader.create_batches(real_data_test_file)
+    # language_model_evaluation(sess,generator, test_data_loader)
 
     log.close()
 
