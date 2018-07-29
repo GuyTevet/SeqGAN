@@ -13,6 +13,9 @@ import json
 # from tqdm import tqdm
 from sequence_gan import *
 
+SEQ_LENGTH = 200
+EXPERIMENT_NAME = 'dummy'
+
 def convergence_experiment(sess, tested_model, data_loader):
 
     data_loader.reset_pointer()
@@ -72,8 +75,8 @@ def main():
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
         charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
-        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap)
+        gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
@@ -120,7 +123,7 @@ def main():
 
     print('#########################################################################')
     print('Start Language Model Evaluation...')
-    test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
+    test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
     test_data_loader.create_batches(real_data_test_file)
     language_model_evaluation(sess,generator, test_data_loader)
 

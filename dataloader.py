@@ -31,10 +31,10 @@ class Gen_Data_loader(object):
 
 class Gen_Data_loader_text8(Gen_Data_loader):
 
-    def __init__(self, batch_size, charmap, inv_charmap):
+    def __init__(self, batch_size, charmap, inv_charmap,seq_len=20):
         super(Gen_Data_loader_text8, self).__init__(batch_size)
         self.charmap, self.inv_charmap = charmap, inv_charmap
-        self.seq_len = 20
+        self.seq_len = seq_len
 
     def create_batches(self, data_file, limit_num_samples=None):
 
@@ -135,10 +135,10 @@ class Dis_dataloader(object):
 
 class Dis_dataloader_text8(Dis_dataloader):
 
-    def __init__(self, batch_size, charmap, inv_charmap):
+    def __init__(self, batch_size, charmap, inv_charmap,seq_len=20):
         super(Dis_dataloader_text8, self).__init__(batch_size)
         self.charmap, self.inv_charmap = charmap, inv_charmap
-        self.seq_len = 20
+        self.seq_len = seq_len
 
     def load_train_data(self, positive_file, negative_file):
 
