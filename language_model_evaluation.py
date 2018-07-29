@@ -10,7 +10,7 @@ import pickle
 import os
 import collections
 import json
-from tqdm import tqdm
+# from tqdm import tqdm
 from sequence_gan import *
 
 def convergence_experiment(sess, tested_model, data_loader):

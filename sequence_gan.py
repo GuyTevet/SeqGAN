@@ -10,7 +10,7 @@ import pickle
 import os
 import collections
 import json
-from tqdm import tqdm
+# from tqdm import tqdm
 
 #########################################################################################
 #  Generator  Hyper-parameters
@@ -55,7 +55,7 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
     print('Generating samples...')
     # Generate Samples
     generated_samples = []
-    for _ in tqdm(list(range(int(generated_num / batch_size)))):
+    for _ in list(range(int(generated_num / batch_size))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -67,7 +67,7 @@ def generate_real_data_samples(sess, trainable_model, batch_size, generated_num,
     # Generate Samples
     print('Generating real data samples...')
     generated_samples = []
-    for _ in tqdm(list(range(int(generated_num / batch_size)))):
+    for _ in list(range(int(generated_num / batch_size))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
@@ -95,7 +95,7 @@ def pre_train_epoch(sess, trainable_model, data_loader):
     supervised_g_losses = []
     data_loader.reset_pointer()
 
-    for it in tqdm(range(data_loader.num_batch)):
+    for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
         _, g_loss = trainable_model.pretrain_step(sess, batch)
         supervised_g_losses.append(g_loss)
@@ -244,7 +244,7 @@ def main():
             dis_data_loader.load_train_data(positive_file, negative_file)
         for _ in range(3):
             dis_data_loader.reset_pointer()
-            for it in tqdm(range(dis_data_loader.num_batch)):
+            for it in range(dis_data_loader.num_batch):
                 x_batch, y_batch = dis_data_loader.next_batch()
                 feed = {
                     discriminator.input_x: x_batch,
@@ -293,7 +293,7 @@ def main():
 
             for _ in range(3):
                 dis_data_loader.reset_pointer()
-                for it in tqdm(range(dis_data_loader.num_batch)):
+                for it in range(dis_data_loader.num_batch):
                     x_batch, y_batch = dis_data_loader.next_batch()
                     feed = {
                         discriminator.input_x: x_batch,
