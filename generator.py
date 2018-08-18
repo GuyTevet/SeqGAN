@@ -91,7 +91,7 @@ class Generator(object):
 
         self.g_predictions = tf.transpose(self.g_predictions.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
         self.g_pred_argmax = tf.argmax(self.g_predictions,axis=2) # batch_size x seq_length
-        self.g_pred_one_hot = tf.one_hot(self.g_pred_argmax,depth=self.g_predictions.shape[2]) # batch_size x seq_length x vocab_size
+        # self.g_pred_one_hot = tf.one_hot(self.g_pred_argmax,depth=self.g_predictions.shape[2]) # batch_size x seq_length x vocab_size
 
         # pretraining loss
         self.pretrain_loss = -tf.reduce_sum(
@@ -121,6 +121,41 @@ class Generator(object):
         self.g_grad, _ = tf.clip_by_global_norm(tf.gradients(self.g_loss, self.g_params), self.grad_clip)
         self.g_updates = g_opt.apply_gradients(list(zip(self.g_grad, self.g_params)))
 
+        #######################################################################################################
+        #  LM evaluation
+        #######################################################################################################
+
+        self.g_pred_sampled = tensor_array_ops.TensorArray(dtype=tf.int32, size=self.sequence_length,
+                                             dynamic_size=False, infer_shape=True)
+        self.g_pred_for_eval = tensor_array_ops.TensorArray(
+            dtype=tf.float32, size=self.sequence_length,
+            dynamic_size=False, infer_shape=True)
+
+        def _g_lm_eval(i, x_t, h_tm1, g_pred_for_eval, g_pred_sampled):
+            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
+            log_prob = tf.log(tf.nn.softmax(o_t))
+            g_pred_for_eval = g_pred_for_eval.write(i, tf.nn.softmax(o_t))
+            next_token = tf.cast(tf.reshape(tf.multinomial(log_prob, 1), [self.batch_size]), tf.int32)
+            g_pred_sampled = g_pred_sampled.write(i, next_token)
+            x_tp1 = ta_emb_x.read(i)
+            return i + 1, x_tp1, h_t, g_pred_for_eval, g_pred_sampled
+
+        _, _, _, self.g_pred_for_eval, self.g_pred_sampled = control_flow_ops.while_loop(
+            cond=lambda i, _1, _2, _3, _4: i < self.sequence_length,
+            body=_g_lm_eval,
+            loop_vars=(tf.constant(0, dtype=tf.int32),
+                       tf.nn.embedding_lookup(self.g_embeddings, self.start_token),
+                       self.h0, self.g_pred_for_eval, self.g_pred_sampled))
+
+        self.g_pred_for_eval = tf.transpose(self.g_pred_for_eval.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
+        self.g_pred_sampled = self.g_pred_sampled.stack()  # seq_length x batch_size
+        self.g_pred_sampled = tf.transpose(self.g_pred_sampled, perm=[1, 0])  # batch_size x seq_length
+
+        self.g_pred_one_hot = tf.one_hot(self.g_pred_sampled,self.num_emb, 1.0, 0.0)
+
+
+
     def generate(self, sess):
         outputs = sess.run(self.gen_x)
         return outputs
@@ -130,7 +165,8 @@ class Generator(object):
         return outputs
 
     def language_model_eval_step(self, sess, x):
-        outputs = sess.run([self.g_pred_one_hot, self.g_predictions], feed_dict={self.x: x})
+        # outputs = sess.run([self.g_pred_one_hot, self.g_predictions], feed_dict={self.x: x})
+        outputs = sess.run([self.g_pred_one_hot, self.g_pred_for_eval], feed_dict={self.x: x})
         return outputs
 
     def init_matrix(self, shape):

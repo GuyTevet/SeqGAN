@@ -19,8 +19,8 @@ EMB_DIM = 32 # embedding dimension
 HIDDEN_DIM = 32 # hidden state dimension of lstm cell
 SEQ_LENGTH = 20 # sequence length
 START_TOKEN = 0
-PRE_EPOCH_NUM = 120 # 120 # supervise (maximum likelihood estimation) epochs for generator
-DISC_PRE_EPOCH_NUM = 50 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
+PRE_EPOCH_NUM = 0 # 120 # supervise (maximum likelihood estimation) epochs for generator
+DISC_PRE_EPOCH_NUM = 0 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
 SEED = 88
 BATCH_SIZE = 64
 
@@ -37,8 +37,8 @@ dis_batch_size = 64
 #########################################################################################
 #  Basic Training Parameters
 #########################################################################################
-EXPERIMENT_NAME = 'regular_120_50_200'
-TOTAL_BATCH = 200 #200 #num of adversarial epochs
+EXPERIMENT_NAME = 'lm_only_0_0_0'
+TOTAL_BATCH = 0 #200 #num of adversarial epochs
 positive_file = 'save/real_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
