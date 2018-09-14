@@ -152,9 +152,9 @@ def main(FLAGS):
     #########################################################################################
     EXPERIMENT_NAME = FLAGS.experiment_name
     TOTAL_BATCH = FLAGS.num_epochs  # 200 #num of adversarial epochs
-    positive_file = 'save/real_data.txt'
-    negative_file = 'save/generator_sample.txt'
-    eval_file = 'save/eval_file.txt'
+    positive_file = 'save/real_data_%0s.txt'%EXPERIMENT_NAME
+    negative_file = 'save/generator_sample_%0s.txt'%EXPERIMENT_NAME
+    eval_file = "save/eval_file_%0s"%EXPERIMENT_NAME
     generated_num = 10000  # 10000
 
     #########################################################################################
@@ -197,6 +197,7 @@ def main(FLAGS):
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3
     sess = tf.Session(config=config)
     saver = tf.train.Saver(tf.trainable_variables())
     sess.run(tf.global_variables_initializer())
@@ -350,8 +351,11 @@ if __name__ == '__main__':
     #choose GPU device
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_inst
 
-    # print FLAGS
+    #check valid name
+    if os.path.isdir(os.path.join('ckp',FLAGS.experiment_name)):
+        raise NameError("experiment_name [%0s] already exists - choose another one!")
 
+    # print FLAGS
     args_dict = vars(FLAGS)
     config_file = os.path.join('ckp','config_' + FLAGS.experiment_name + '.txt')
     if not os.path.isdir('ckp'):
@@ -361,6 +365,7 @@ if __name__ == '__main__':
             s = "%0s :\t\t\t%0s"%(arg,str(args_dict[arg]))
             print(s)
             f.write(s + '\n')
+
 
     # run
     main(FLAGS)
