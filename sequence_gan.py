@@ -10,46 +10,8 @@ import pickle
 import os
 import collections
 import json
+import argparse
 # from tqdm import tqdm
-
-#########################################################################################
-#  Generator  Hyper-parameters
-######################################################################################
-EMB_DIM = 32 # embedding dimension
-HIDDEN_DIM = 32 # hidden state dimension of lstm cell
-SEQ_LENGTH = 20 # sequence length
-START_TOKEN = 0
-PRE_EPOCH_NUM = 0 # 120 # supervise (maximum likelihood estimation) epochs for generator
-DISC_PRE_EPOCH_NUM = 0 # 50 # supervise (maximum likelihood estimation) epochs for descriminator
-SEED = 88
-BATCH_SIZE = 64
-
-#########################################################################################
-#  Discriminator  Hyper-parameters
-#########################################################################################
-dis_embedding_dim = 64
-dis_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]
-dis_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100, 160, 160]
-dis_dropout_keep_prob = 0.75
-dis_l2_reg_lambda = 0.2
-dis_batch_size = 64
-
-#########################################################################################
-#  Basic Training Parameters
-#########################################################################################
-EXPERIMENT_NAME = 'lm_only_0_0_0'
-TOTAL_BATCH = 0 #200 #num of adversarial epochs
-positive_file = 'save/real_data.txt'
-negative_file = 'save/generator_sample.txt'
-eval_file = 'save/eval_file.txt'
-generated_num = 10000 # 10000
-
-#########################################################################################
-#  Data configurations
-#########################################################################################
-use_real_world_data = True
-real_data_file_path = './data/text8'
-
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
     print('Generating samples...')
@@ -162,7 +124,46 @@ def create_real_data_dict(data_file, dict_file):
     return charmap, inv_charmap
     
 
-def main():
+def main(FLAGS):
+    #########################################################################################
+    #  Generator  Hyper-parameters
+    ######################################################################################
+    EMB_DIM = FLAGS.gen_emb_dim # 32  # embedding dimension
+    HIDDEN_DIM = FLAGS.gen_hidden_dim # 32  # hidden state dimension of lstm cell
+    SEQ_LENGTH = FLAGS.seq_len # 20  # sequence length
+    START_TOKEN = 0
+    PRE_EPOCH_NUM = FLAGS.gen_pretrain_epoch_num  # 120 # supervise (maximum likelihood estimation) epochs for generator
+    DISC_PRE_EPOCH_NUM = FLAGS.dis_pretrain_epoch_num  # 50 # supervise (maximum likelihood estimation) epochs for descriminator
+    SEED = 88
+    BATCH_SIZE = FLAGS.batch_size #64
+
+    #########################################################################################
+    #  Discriminator  Hyper-parameters
+    #########################################################################################
+    dis_embedding_dim = FLAGS.dis_emb_dim # 64
+    dis_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]
+    dis_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100, 160, 160]
+    dis_dropout_keep_prob = 0.75
+    dis_l2_reg_lambda = 0.2
+    dis_batch_size = FLAGS.batch_size #64
+
+    #########################################################################################
+    #  Basic Training Parameters
+    #########################################################################################
+    EXPERIMENT_NAME = FLAGS.experiment_name
+    TOTAL_BATCH = FLAGS.num_epochs  # 200 #num of adversarial epochs
+    positive_file = 'save/real_data.txt'
+    negative_file = 'save/generator_sample.txt'
+    eval_file = 'save/eval_file.txt'
+    generated_num = 10000  # 10000
+
+    #########################################################################################
+    #  Data configurations
+    #########################################################################################
+    use_real_world_data = True
+    real_data_file_path = './data/text8'
+
+
     random.seed(SEED)
     np.random.seed(SEED)
     assert START_TOKEN == 0
@@ -318,4 +319,46 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+
+    parser = argparse.ArgumentParser(description="SeqGAN Train for text8 dataset")
+
+    ######################################################################################
+    #  General
+    ######################################################################################
+    parser.add_argument('experiment_name', type=str, help='experiment name')
+    parser.add_argument('--num_epochs', type=int, default=200, help='number of adversarial epochs [200]')
+    parser.add_argument('--seq_len', type=int, default=20, help='sequence length [20]')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch_size [64]')
+    parser.add_argument('--gpu_inst', type=str, default='', help='choose GPU instance. empty string == run on CPU []')
+
+
+    ######################################################################################
+    #  Generator  Hyper-parameters
+    ######################################################################################
+    parser.add_argument('--gen_emb_dim', type=int, default=32, help='generator embedding dimension [32]')
+    parser.add_argument('--gen_hidden_dim', type=int, default=32, help='hidden state dimension of lstm cell [32]')
+    parser.add_argument('--gen_pretrain_epoch_num', type=int, default=120, help='supervise (maximum likelihood estimation) epochs for generator [120]')
+
+    #########################################################################################
+    #  Discriminator  Hyper-parameters
+    #########################################################################################
+    parser.add_argument('--dis_emb_dim', type=int, default=64, help='discriminator embedding dimension [64]')
+    parser.add_argument('--dis_pretrain_epoch_num', type=int, default=50, help='supervise (maximum likelihood estimation) epochs for descriminator [50]')
+
+    FLAGS = parser.parse_args()
+
+    #choose GPU device
+    os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_inst
+
+    # print FLAGS
+
+    args_dict = vars(FLAGS)
+    config_file = os.path.join('ckp','config_' + FLAGS.experiment_name + '.txt')
+    with open(config_file,'w') as f:
+        for arg in args_dict.keys():
+            s = "%0s :\t\t\t%0s"%(arg,str(args_dict[arg]))
+            print(s)
+            f.write(s + '\n')
+
+    # run
+    main(FLAGS)
