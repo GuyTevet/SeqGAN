@@ -354,6 +354,8 @@ if __name__ == '__main__':
 
     args_dict = vars(FLAGS)
     config_file = os.path.join('ckp','config_' + FLAGS.experiment_name + '.txt')
+    if not os.path.isdir('ckp'):
+        os.mkdir('ckp')
     with open(config_file,'w') as f:
         for arg in args_dict.keys():
             s = "%0s :\t\t\t%0s"%(arg,str(args_dict[arg]))
