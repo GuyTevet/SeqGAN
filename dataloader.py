@@ -38,8 +38,10 @@ class Gen_Data_loader_text8(Gen_Data_loader):
 
     def create_batches(self, data_file, limit_num_samples=None):
 
-        if os.path.exists(data_file + '.npy'):
-            self.token_stream = np.load(data_file + '.npy')
+        cache_file = "%s_seqlen%0d.npy"%(data_file,self.seq_len)
+
+        if os.path.exists(cache_file):
+            self.token_stream = np.load(cache_file)
         else:
             self.token_stream = []
 
@@ -52,7 +54,10 @@ class Gen_Data_loader_text8(Gen_Data_loader):
 
                     line = f.read(self.seq_len)
 
-            np.save(data_file,np.array(self.token_stream))
+            self.token_stream = np.array(self.token_stream)
+            np.save(cache_file.replace('.npy',''),self.token_stream)
+
+        assert self.token_stream.shape[1] == self.seq_len
 
         if limit_num_samples is not None:
             # choose only limit_num_samples from them
@@ -170,8 +175,11 @@ class Dis_dataloader_text8(Dis_dataloader):
 
 
         #LOAD POSITIVE
-        if os.path.exists(positive_file + '.npy'):
-            positive_examples = np.load(positive_file + '.npy')
+
+        cache_positive = "%s_seqlen%0d.npy"%(positive_file,self.seq_len)
+
+        if os.path.exists(cache_positive):
+            positive_examples = np.load(cache_positive)
         else:
             positive_examples = []
 
@@ -184,7 +192,10 @@ class Dis_dataloader_text8(Dis_dataloader):
 
                     line = f.read(self.seq_len)
 
-            np.save(positive_file,np.array(positive_examples))
+            positive_examples = np.array(positive_examples)
+            np.save(cache_positive.replace('.npy',''),positive_examples)
+
+        assert positive_examples.shape[1] == self.seq_len
 
         #choose only num_positive_samples from them
         permut = np.random.permutation(positive_examples.shape[0])[:num_positive_samples]

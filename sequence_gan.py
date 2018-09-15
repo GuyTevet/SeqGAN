@@ -178,8 +178,8 @@ def main(FLAGS):
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
         charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap)
-        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap)
+        gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,seq_len=SEQ_LENGTH)
+        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap,seq_len=SEQ_LENGTH)
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
