@@ -13,8 +13,25 @@ import json
 from tqdm import tqdm
 from sequence_gan import *
 
-SEQ_LENGTH = 200 # IF CHANGED - also delete Cache - aka 'text8-test.txt.npy'
-# EXPERIMENT_NAME = 'lm_only_320_0_0'
+# FIXME - hard coded params
+BATCH_SIZE = 64
+SEED = 88
+START_TOKEN = 0
+use_real_world_data = True
+real_data_file_path = './data/text8'
+SEQ_LENGTH = 1000 #200
+
+
+def restore_param_from_config(config_file,param):
+    with open(config_file,'r') as f:
+        line = None
+        while line != '':
+            line = f.readline()
+            if line.startswith(param):
+                return int(line.replace(param,'').replace(':',''))
+
+    return None
+
 
 def convergence_experiment(sess, tested_model, data_loader):
 
@@ -101,48 +118,72 @@ def language_model_evaluation_by_approximation(sess, tested_model, data_loader):
 
     return np.average(BPC_list)
 
-def main():
+def main(FLAGS):
+
     random.seed(SEED)
     np.random.seed(SEED)
     assert START_TOKEN == 0
 
     if use_real_world_data:
         vocab_size = 27
-        # split to train-eval-test
+        # split to train-valid-test
         real_data_train_file = real_data_file_path + '-train'
-        real_data_eval_file = real_data_file_path + '-eval'
+        real_data_valid_file = real_data_file_path + '-valid'
         real_data_test_file = real_data_file_path + '-test'
         real_data_dict_file = real_data_file_path + '-dict.json'
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
         charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-        dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        # gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        # dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
         vocab_size = 5000
         dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
-    generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
+    # if not use_real_world_data:
+    #     target_params = pickle.load(open('save/target_params.pkl'))
+    #     target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
-    if not use_real_world_data:
-        target_params = pickle.load(open('save/target_params.pkl'))
-        target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
+    # discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
+    #                             filter_sizes=dis_filter_sizes, num_filters=dis_num_filters, l2_reg_lambda=dis_l2_reg_lambda)
 
-    discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
-                                filter_sizes=dis_filter_sizes, num_filters=dis_num_filters, l2_reg_lambda=dis_l2_reg_lambda)
+    # # tf.reset_default_graph()
+    # generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-    # sess.run(tf.global_variables_initializer())
+    # config = tf.ConfigProto()
+    # config.gpu_options.allow_growth = True
+    # sess = tf.Session(config=config)
+    # # sess.run(tf.global_variables_initializer())
 
     # for exp_name in ['lm_only_0_0_0', 'lm_only_1_0_0', 'lm_only_120_0_0' , 'regular_120_50_200']:
-    for exp_name in ['regular_120_50_200','lm_only_120_0_0']:
+    for exp_name in [exp for exp in os.listdir('ckp') if os.path.isdir(os.path.join('ckp',exp))]:
         print('#########################################################################')
         print('loading model [%0s]...'%exp_name)
 
+
+        # restore generator arch
+        try:
+            config = os.path.join('ckp','config_' + exp_name + '.txt')
+            EMB_DIM = restore_param_from_config(config, param= 'gen_emb_dim')
+            HIDDEN_DIM = restore_param_from_config(config, param= 'gen_hidden_dim')
+        except:
+            EMB_DIM = 32
+            HIDDEN_DIM = 32
+            print("WARNING: CONFIG FILE WAS NOT FOUND - USING DEFAULT CONFIG")
+        assert type(EMB_DIM) == int
+        assert type(HIDDEN_DIM) == int
+
+        tf.reset_default_graph()
+        generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
+
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        sess = tf.Session(config=config)
+        # sess.run(tf.global_variables_initializer())
+
+        # restore weights
         save_file = os.path.join('.', 'ckp', exp_name, exp_name)
         reader = tf.train.NewCheckpointReader(save_file)
         saved_shapes = reader.get_variable_to_shape_map()
@@ -163,24 +204,34 @@ def main():
         print (restore_vars)
         saver.restore(sess, save_file)
 
-        if exp_name == 'regular_120_50_200':
-            print('#########################################################################')
-            print('Conducting convergence expariment...')
-            test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-            test_data_loader.create_batches(real_data_test_file)
-            results = convergence_experiment(sess, generator, test_data_loader)
-            print('Saving results...')
-            np.save('SeqGan_' + exp_name + '_conv_results',results)
+        # if exp_name == 'regular_120_50_200':
+        #     print('#########################################################################')
+        #     print('Conducting convergence expariment...')
+        #     test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        #     test_data_loader.create_batches(real_data_test_file)
+        #     results = convergence_experiment(sess, generator, test_data_loader)
+        #     print('Saving results...')
+        #     np.save('SeqGan_' + exp_name + '_conv_results',results)
 
 
-        print('#########################################################################')
+        print('###')
         print('Start Language Model Evaluation...')
         test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-        test_data_loader.create_batches(real_data_test_file)
+        if FLAGS.test:
+            test_data_loader.create_batches(real_data_test_file)
+            print("USING TEXT8 TEST SET")
+        else:
+            test_data_loader.create_batches(real_data_valid_file)
+            print("USING TEXT8 VALID SET")
         BPC_direct = language_model_evaluation_direct(sess,generator, test_data_loader)
-        BPC_approx = language_model_evaluation_by_approximation(sess, generator, test_data_loader)
+        # BPC_approx = language_model_evaluation_by_approximation(sess, generator, test_data_loader)
         print("[%0s] BPC_direct = %f"%(exp_name,BPC_direct))
-        print("[%0s] BPC_approx = %f" % (exp_name, BPC_approx))
+        # print("[%0s] BPC_approx = %f" % (exp_name, BPC_approx))
 
 if __name__ == '__main__':
-    main()
+
+    parser = argparse.ArgumentParser(description="SeqGAN LM Test on Text8")
+    parser.add_argument('--test', action='store_true')
+    FLAGS = parser.parse_args()
+
+    main(FLAGS)

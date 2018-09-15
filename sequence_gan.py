@@ -170,9 +170,9 @@ def main(FLAGS):
 
     if use_real_world_data:
         vocab_size = 27
-        # split to train-eval-test
+        # split to train-valid-test
         real_data_train_file = real_data_file_path + '-train'
-        real_data_eval_file = real_data_file_path + '-eval'
+        real_data_valid_file = real_data_file_path + '-valid'
         real_data_test_file = real_data_file_path + '-test'
         real_data_dict_file = real_data_file_path + '-dict.json'
         if not os.path.exists(real_data_train_file):
