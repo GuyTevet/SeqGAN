@@ -169,7 +169,10 @@ def main(FLAGS):
 
         # restore generator arch
         try:
-            config = os.path.join('ckp','config_' + exp_name.split('_epoch_')[0] + '.txt')
+            if FLAGS.epoch_exp:
+                config = os.path.join('ckp','config_' + exp_name.split('_epoch_')[0] + '.txt')
+            else:
+                config = os.path.join('ckp', 'config_' + exp_name + '.txt')
             EMB_DIM = restore_param_from_config(config, param= 'gen_emb_dim')
             HIDDEN_DIM = restore_param_from_config(config, param= 'gen_hidden_dim')
         except:
