@@ -264,6 +264,12 @@ def main(FLAGS):
         # Train the generator for one step
         print("start epoch %0d" % total_batch)
 
+        if total_batch % FLAGS.save_each_epochs == 0:
+            print('#########################################################################')
+            print('saving model...')
+            save_file = os.path.join('.', 'ckp', EXPERIMENT_NAME + '_epoch_%0d'%total_batch , EXPERIMENT_NAME + '_epoch_%0d'%total_batch)
+            saver.save(sess, save_file)
+
         for it in range(1):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
@@ -304,6 +310,7 @@ def main(FLAGS):
                     }
                     _ = sess.run(discriminator.train_op, feed)
 
+
     print('#########################################################################')
     print('saving model...')
     save_file = os.path.join('.','ckp',EXPERIMENT_NAME,EXPERIMENT_NAME)
@@ -328,10 +335,10 @@ if __name__ == '__main__':
     ######################################################################################
     parser.add_argument('experiment_name', type=str, help='experiment name')
     parser.add_argument('--num_epochs', type=int, default=200, help='number of adversarial epochs [200]')
-    parser.add_argument('--seq_len', type=int, default=20, help='sequence length [20]')
+    parser.add_argument('--seq_len', type=int, default=20, help='sequence length (must be >= 20 to fit disc arc) [20]')
     parser.add_argument('--batch_size', type=int, default=64, help='batch_size [64]')
     parser.add_argument('--gpu_inst', type=str, default='', help='choose GPU instance. empty string == run on CPU []')
-
+    parser.add_argument('--save_each_epochs', type=int, default=999999, help='save model each X epochs [999999]')
 
     ######################################################################################
     #  Generator  Hyper-parameters

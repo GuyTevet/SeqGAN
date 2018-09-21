@@ -157,15 +157,19 @@ def main(FLAGS):
     # sess = tf.Session(config=config)
     # # sess.run(tf.global_variables_initializer())
 
-    # for exp_name in ['lm_only_0_0_0', 'lm_only_1_0_0', 'lm_only_120_0_0' , 'regular_120_50_200']:
-    for exp_name in [exp for exp in os.listdir('ckp') if os.path.isdir(os.path.join('ckp',exp))]:
+    experiments_list = [exp for exp in os.listdir('ckp') if os.path.isdir(os.path.join('ckp',exp))]
+    if FLAGS.epoch_exp:
+        experiments_list.sort(key=lambda x: int(x.split('_epoch_')[-1]))
+        stats = np.zeros([2,len(experiments_list)],dtype=np.float32)
+
+    for i, exp_name in enumerate(experiments_list):
         print('#########################################################################')
         print('loading model [%0s]...'%exp_name)
 
 
         # restore generator arch
         try:
-            config = os.path.join('ckp','config_' + exp_name + '.txt')
+            config = os.path.join('ckp','config_' + exp_name.split('_epoch_')[0] + '.txt')
             EMB_DIM = restore_param_from_config(config, param= 'gen_emb_dim')
             HIDDEN_DIM = restore_param_from_config(config, param= 'gen_hidden_dim')
         except:
@@ -228,10 +232,19 @@ def main(FLAGS):
         print("[%0s] BPC_direct = %f"%(exp_name,BPC_direct))
         # print("[%0s] BPC_approx = %f" % (exp_name, BPC_approx))
 
+        if FLAGS.epoch_exp:
+            stats[0, i] = int(exp_name.split('_epoch_')[-1])
+            stats[1, i] = BPC_direct
+
+    if FLAGS.epoch_exp:
+        np.save('direct_results_epoch_exp',stats)
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="SeqGAN LM Test on Text8")
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--epoch_exp', action='store_true')
     FLAGS = parser.parse_args()
 
     main(FLAGS)
