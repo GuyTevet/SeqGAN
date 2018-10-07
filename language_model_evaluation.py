@@ -231,9 +231,11 @@ def main(FLAGS):
             test_data_loader.create_batches(real_data_valid_file)
             print("USING TEXT8 VALID SET")
         BPC_direct = language_model_evaluation_direct(sess,generator, test_data_loader)
-        # BPC_approx = language_model_evaluation_by_approximation(sess, generator, test_data_loader)
         print("[%0s] BPC_direct = %f"%(exp_name,BPC_direct))
-        # print("[%0s] BPC_approx = %f" % (exp_name, BPC_approx))
+
+        if FLAGS.test:
+            BPC_approx = language_model_evaluation_by_approximation(sess, generator, test_data_loader)
+            print("[%0s] BPC_approx = %f" % (exp_name, BPC_approx))
 
         if FLAGS.epoch_exp:
             stats[0, i] = int(exp_name.split('_epoch_')[-1])
