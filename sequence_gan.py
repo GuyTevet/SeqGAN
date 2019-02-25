@@ -25,16 +25,24 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
             buffer = ' '.join([str(x) for x in poem]) + '\n'
             fout.write(buffer)
 
-def generate_real_data_samples(sess, trainable_model, batch_size, generated_num, output_file, inv_charmap):
+def generate_real_data_samples(sess, trainable_model, batch_size, generated_num, output_file, inv_map, token_type):
     # Generate Samples
     print('Generating real data samples...')
+
+    if token_type == 'char':
+        seperator = ''
+    elif token_type == 'word':
+        seperator = ' '
+    else:
+        raise TypeError
+
     generated_samples = []
     for _ in list(range(int(generated_num / batch_size))):
         generated_samples.extend(trainable_model.generate(sess))
 
     with open(output_file, 'w') as fout:
         for poem in generated_samples:
-            buffer = ''.join([inv_charmap[x] for x in poem]) + '\n'
+            buffer = seperator.join([inv_map[x] for x in poem]) + '\n'
             fout.write(buffer)
 
 
@@ -91,37 +99,39 @@ def split_text8(text8_orig_path):
 
     return
 
-def create_real_data_dict(data_file, dict_file):
+def create_real_data_dict(data_file, dict_file, token_type):
 
     if not os.path.exists(dict_file): #create dict
         with open(data_file, 'r') as f:
             all_data = f.read()
 
-        counts = collections.Counter(char for char in all_data)
+        if token_type == 'char':
+            counts = collections.Counter(char for char in all_data)
+        elif token_type == 'word':
+            all_data = all_data.replace('\n','<eos>')
+            counts = collections.Counter(all_data.split(' '))
 
-        charmap = {}
-        inv_charmap = []
+        map = {}
+        inv_map = []
 
-        for char, count in counts.most_common(100):
-            if char not in charmap:
-                charmap[char] = len(inv_charmap)
-                inv_charmap.append(char)
-
-        assert len(charmap) == 27
+        for token, count in counts.most_common(200000):
+            if token not in map:
+                map[token] = len(inv_map)
+                inv_map.append(token)
 
         #save dict
         with open(dict_file,'w') as f:
-            f.write(json.dumps(charmap))
+            f.write(json.dumps(map))
 
     else: # load dict
         with open(dict_file, 'r') as f:
-            charmap = json.loads(f.read())
+            map = json.loads(f.read())
 
-        inv_charmap = [None] * len(charmap)
-        for key in list(charmap.keys()):
-            inv_charmap[int(charmap[key])] = str(key)
+        inv_map = [None] * len(map)
+        for key in list(map.keys()):
+            inv_map[int(map[key])] = str(key)
 
-    return charmap, inv_charmap
+    return map, inv_map
     
 
 def main(FLAGS):
@@ -161,7 +171,9 @@ def main(FLAGS):
     #  Data configurations
     #########################################################################################
     use_real_world_data = True
-    real_data_file_path = './data/text8'
+    real_data_file_path = FLAGS.dataset_path # './data/text8/text8'
+    dataset_name = os.path.basename(real_data_file_path)
+    base_token = FLAGS.base_token # 'char'
 
 
     random.seed(SEED)
@@ -169,17 +181,28 @@ def main(FLAGS):
     assert START_TOKEN == 0
 
     if use_real_world_data:
-        vocab_size = 27
-        # split to train-valid-test
+
         real_data_train_file = real_data_file_path + '-train'
         real_data_valid_file = real_data_file_path + '-valid'
         real_data_test_file = real_data_file_path + '-test'
-        real_data_dict_file = real_data_file_path + '-dict.json'
+        real_data_dict_file = real_data_file_path + '-{}-dict.json'.format(base_token)
+
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
-        charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        gen_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,seq_len=SEQ_LENGTH)
-        dis_data_loader = Dis_dataloader_text(BATCH_SIZE,charmap,inv_charmap,seq_len=SEQ_LENGTH)
+
+        map, inv_map = create_real_data_dict(real_data_train_file, real_data_dict_file, base_token)
+        vocab_size = len(map)
+
+        if dataset_name == 'text8' and base_token == 'char':
+            assert vocab_size == 27 # SORRY FOR THE HARD CODING
+        elif dataset_name == 'ptb' and base_token == 'word':
+            assert vocab_size == 10001 # SORRY FOR THE HARD CODING
+        else:
+            raise TypeError
+
+        gen_data_loader = Gen_Data_loader_text(BATCH_SIZE, map, inv_map, seq_len=SEQ_LENGTH, token_type=base_token)
+        dis_data_loader = Dis_dataloader_text(BATCH_SIZE, map, inv_map, seq_len=SEQ_LENGTH, token_type=base_token)
+
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
@@ -223,7 +246,7 @@ def main(FLAGS):
         loss = pre_train_epoch(sess, generator, gen_data_loader)
         if epoch % 1 == 0:
             if use_real_world_data:
-                generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, eval_file + "_epoch_%0d.txt"%epoch ,inv_charmap)
+                generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, eval_file + "_epoch_%0d.txt"%epoch ,inv_map, base_token)
                 test_loss = 0 # FIXME - TEMP
             else:
                 generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
@@ -239,7 +262,7 @@ def main(FLAGS):
     for epoch in range(DISC_PRE_EPOCH_NUM):
         print("start epoch %0d"%epoch)
         if use_real_world_data:
-            generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num , negative_file,inv_charmap)
+            generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num , negative_file,inv_map, base_token)
             dis_data_loader.load_train_data(real_data_train_file, negative_file)
         else:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
@@ -293,7 +316,7 @@ def main(FLAGS):
         for _ in range(5):
 
             if use_real_world_data:
-                generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, negative_file, inv_charmap)
+                generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, negative_file, inv_map, base_token)
                 dis_data_loader.load_train_data(real_data_train_file, negative_file)
             else:
                 generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
@@ -319,7 +342,7 @@ def main(FLAGS):
     #
     # print '#########################################################################'
     # print 'Start Language Model Evaluation...'
-    # test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap)
+    # test_data_loader = Gen_Data_loader_text(BATCH_SIZE,map,inv_map)
     # test_data_loader.create_batches(real_data_test_file)
     # language_model_evaluation(sess,generator, test_data_loader)
 
@@ -334,6 +357,8 @@ if __name__ == '__main__':
     #  General
     ######################################################################################
     parser.add_argument('experiment_name', type=str, help='experiment name')
+    parser.add_argument('--dataset_path', type=str, default='./data/text8/text8',  help='dataset path', choices=['./data/text8/text8', './data/ptb/ptb'])
+    parser.add_argument('--base_token', type=str, default='char', help='base token', choices=['char', 'word'])
     parser.add_argument('--num_epochs', type=int, default=200, help='number of adversarial epochs [200]')
     parser.add_argument('--seq_len', type=int, default=20, help='sequence length (must be >= 20 to fit disc arc) [20]')
     parser.add_argument('--batch_size', type=int, default=64, help='batch_size [64]')

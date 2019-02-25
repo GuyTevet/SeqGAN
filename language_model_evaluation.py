@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import random
-from dataloader import Gen_Data_loader, Gen_Data_loader_text8, Dis_dataloader, Dis_dataloader_text8
+from dataloader import Gen_Data_loader, Gen_Data_loader_text, Dis_dataloader, Dis_dataloader_text
 from generator import Generator
 from discriminator import Discriminator
 from rollout import ROLLOUT
@@ -134,8 +134,8 @@ def main(FLAGS):
         if not os.path.exists(real_data_train_file):
             split_text8(real_data_file_path)
         charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        # gen_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-        # dis_data_loader = Dis_dataloader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        # gen_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        # dis_data_loader = Dis_dataloader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
     else:
         gen_data_loader = Gen_Data_loader(BATCH_SIZE)
         likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
@@ -214,7 +214,7 @@ def main(FLAGS):
         # if exp_name == 'regular_120_50_200':
         #     print('#########################################################################')
         #     print('Conducting convergence expariment...')
-        #     test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        #     test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
         #     test_data_loader.create_batches(real_data_test_file)
         #     results = convergence_experiment(sess, generator, test_data_loader)
         #     print('Saving results...')
@@ -223,7 +223,7 @@ def main(FLAGS):
 
         print('###')
         print('Start Language Model Evaluation...')
-        test_data_loader = Gen_Data_loader_text8(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
         if FLAGS.test:
             test_data_loader.create_batches(real_data_test_file)
             print("USING TEXT8 TEST SET")

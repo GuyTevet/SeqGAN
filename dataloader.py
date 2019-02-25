@@ -77,9 +77,8 @@ class Gen_Data_loader_text(Gen_Data_loader):
 
                 elif self.token_type == 'word':
 
-                    text = f.read()
-
-                    text.split(seperator)
+                    text = f.read().replace('\n','<eos>')
+                    text = text.split(seperator)
                     tokens = [int(self.map[word]) for word in text]
 
                     while len(tokens) > self.seq_len:
@@ -218,9 +217,9 @@ class Dis_dataloader_text(Dis_dataloader):
         elif self.token_type == 'word':
 
             with open(negative_file, 'r') as f:
-                text = f.read()
+                text = f.read().replace('\n','<eos>')
 
-            text.split(seperator)
+            text = text.split(seperator)
             tokens = [int(self.map[word]) for word in text]
 
             while len(tokens) > self.seq_len:
@@ -259,9 +258,8 @@ class Dis_dataloader_text(Dis_dataloader):
 
                 elif self.token_type == 'word':
 
-                    text = f.read()
-
-                    text.split(seperator)
+                    text = f.read().replace('\n','<eos>')
+                    text = text.split(seperator)
                     tokens = [int(self.map[word]) for word in text]
 
                     while len(tokens) > self.seq_len:
