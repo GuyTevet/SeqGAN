@@ -29,14 +29,22 @@ class Gen_Data_loader(object):
     def reset_pointer(self):
         self.pointer = 0
 
-class Gen_Data_loader_text8(Gen_Data_loader):
+class Gen_Data_loader_text(Gen_Data_loader):
 
-    def __init__(self, batch_size, charmap, inv_charmap,seq_len=20):
-        super(Gen_Data_loader_text8, self).__init__(batch_size)
-        self.charmap, self.inv_charmap = charmap, inv_charmap
+    def __init__(self, batch_size, map, inv_map,seq_len=20, token_type='char'):
+        super(Gen_Data_loader_text, self).__init__(batch_size)
+        self.map, self.inv_map = map, inv_map
         self.seq_len = seq_len
+        self.token_type = token_type
 
     def create_batches(self, data_file, limit_num_samples=None):
+
+        if self.token_type == 'char':
+            seperator = ''
+        elif self.token_type == 'word':
+            seperator = ' '
+        else:
+            raise TypeError
 
         cache_file = "%s_seqlen%0d.npy"%(data_file,self.seq_len)
 
@@ -45,14 +53,41 @@ class Gen_Data_loader_text8(Gen_Data_loader):
         else:
             self.token_stream = []
 
-            with open(data_file, 'r') as f:
-                line = f.read(self.seq_len)
-                while len(line) == self.seq_len:
-                    tokens = [int(self.charmap[char]) for char in line]
-                    assert len(tokens) == self.seq_len
-                    self.token_stream.append(tokens)
+            # with open(data_file, 'r') as f:
+            #     line = f.read(self.seq_len)
+            #     while len(line) == self.seq_len:
+            #         tokens = [int(self.map[char]) for char in line]
+            #         assert len(tokens) == self.seq_len
+            #         self.token_stream.append(tokens)
+            #
+            #         line = f.read(self.seq_len)
 
+
+            with open(data_file, 'r') as f:
+
+                # tokenize positive
+                if self.token_type == 'char':
                     line = f.read(self.seq_len)
+                    while len(line) == self.seq_len:
+                        tokens = [int(self.map[char]) for char in line]
+                        assert len(tokens) == self.seq_len
+                        self.token_stream.append(tokens)
+
+                        line = f.read(self.seq_len)
+
+                elif self.token_type == 'word':
+
+                    text = f.read()
+
+                    text.split(seperator)
+                    tokens = [int(self.map[word]) for word in text]
+
+                    while len(tokens) > self.seq_len:
+                        self.token_stream.append(tokens[:self.seq_len])
+                        tokens = tokens[self.seq_len:]
+
+                else:
+                    raise TypeError
 
             self.token_stream = np.array(self.token_stream)
             np.save(cache_file.replace('.npy',''),self.token_stream)
@@ -138,12 +173,13 @@ class Dis_dataloader(object):
         self.pointer = 0
 
 
-class Dis_dataloader_text8(Dis_dataloader):
+class Dis_dataloader_text(Dis_dataloader):
 
-    def __init__(self, batch_size, charmap, inv_charmap,seq_len=20):
-        super(Dis_dataloader_text8, self).__init__(batch_size)
-        self.charmap, self.inv_charmap = charmap, inv_charmap
+    def __init__(self, batch_size, map, inv_map, seq_len=20, token_type='char'):
+        super(Dis_dataloader_text, self).__init__(batch_size)
+        self.map, self.inv_map = map, inv_map
         self.seq_len = seq_len
+        self.token_type = token_type
 
     def load_train_data(self, positive_file, negative_file):
 
@@ -155,19 +191,45 @@ class Dis_dataloader_text8(Dis_dataloader):
         negative_examples = []
 
         # remove \n
+        if self.token_type == 'char':
+            seperator = ''
+        elif self.token_type == 'word':
+            seperator = ' '
+        else:
+            raise TypeError
+
         with open(negative_file, 'r') as f:
             all_negative = f.read()
         with open(negative_file, 'w') as f:
-            f.write(all_negative.replace('\n',''))
+                f.write(all_negative.replace('\n', seperator))
 
-        with open(negative_file, 'r') as f:
-            line = f.read(self.seq_len)
-            while len(line) == self.seq_len:
-                tokens = [int(self.charmap[char]) for char in line]
-                assert len(tokens) == self.seq_len
-                negative_examples.append(tokens)
+        # tokenize examples
+        if self.token_type == 'char':
 
+            with open(negative_file, 'r') as f:
                 line = f.read(self.seq_len)
+                while len(line) == self.seq_len:
+                    tokens = [int(self.map[char]) for char in line]
+                    assert len(tokens) == self.seq_len
+                    negative_examples.append(tokens)
+
+                    line = f.read(self.seq_len)
+
+        elif self.token_type == 'word':
+
+            with open(negative_file, 'r') as f:
+                text = f.read()
+
+            text.split(seperator)
+            tokens = [int(self.map[word]) for word in text]
+
+            while len(tokens) > self.seq_len:
+                negative_examples.append(tokens[:self.seq_len])
+                tokens = tokens[self.seq_len:]
+
+        else:
+            raise TypeError
+
 
         # np.save(negative_file,np.array(negative_examples))
         negative_examples = np.array(negative_examples)
@@ -184,13 +246,32 @@ class Dis_dataloader_text8(Dis_dataloader):
             positive_examples = []
 
             with open(positive_file, 'r') as f:
-                line = f.read(self.seq_len)
-                while len(line) == self.seq_len:
-                    tokens = [int(self.charmap[char]) for char in line]
-                    assert len(tokens) == self.seq_len
-                    positive_examples.append(tokens)
 
+                # tokenize positive
+                if self.token_type == 'char':
                     line = f.read(self.seq_len)
+                    while len(line) == self.seq_len:
+                        tokens = [int(self.map[char]) for char in line]
+                        assert len(tokens) == self.seq_len
+                        positive_examples.append(tokens)
+
+                        line = f.read(self.seq_len)
+
+                elif self.token_type == 'word':
+
+                    text = f.read()
+
+                    text.split(seperator)
+                    tokens = [int(self.map[word]) for word in text]
+
+                    while len(tokens) > self.seq_len:
+                        positive_examples.append(tokens[:self.seq_len])
+                        tokens = tokens[self.seq_len:]
+
+                else:
+                    raise TypeError
+
+
 
             positive_examples = np.array(positive_examples)
             np.save(cache_positive.replace('.npy',''),positive_examples)
