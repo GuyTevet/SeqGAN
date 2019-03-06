@@ -18,7 +18,6 @@ BATCH_SIZE = 64
 SEED = 88
 START_TOKEN = 0
 use_real_world_data = True
-real_data_file_path = './data/text8'
 SEQ_LENGTH = 1000 #200
 
 
@@ -28,9 +27,9 @@ def restore_param_from_config(config_file,param):
         while line != '':
             line = f.readline()
             if line.startswith(param):
-                return int(line.replace(param,'').replace(':',''))
+                return line.replace(param,'').replace(':','').strip()
 
-    return None
+    raise ValueError('param was not found')
 
 
 def convergence_experiment(sess, tested_model, data_loader):
@@ -124,24 +123,6 @@ def main(FLAGS):
     np.random.seed(SEED)
     assert START_TOKEN == 0
 
-    if use_real_world_data:
-        vocab_size = 27
-        # split to train-valid-test
-        real_data_train_file = real_data_file_path + '-train'
-        real_data_valid_file = real_data_file_path + '-valid'
-        real_data_test_file = real_data_file_path + '-test'
-        real_data_dict_file = real_data_file_path + '-dict.json'
-        if not os.path.exists(real_data_train_file):
-            split_text8(real_data_file_path)
-        charmap, inv_charmap = create_real_data_dict(real_data_train_file,real_data_dict_file)
-        # gen_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-        # dis_data_loader = Dis_dataloader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
-    else:
-        gen_data_loader = Gen_Data_loader(BATCH_SIZE)
-        likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
-        vocab_size = 5000
-        dis_data_loader = Dis_dataloader(BATCH_SIZE)
-
     # if not use_real_world_data:
     #     target_params = pickle.load(open('save/target_params.pkl'))
     #     target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
@@ -166,21 +147,43 @@ def main(FLAGS):
         print('#########################################################################')
         print('loading model [%0s]...'%exp_name)
 
+        if FLAGS.epoch_exp:
+            config = os.path.join('ckp', 'config_' + exp_name.split('_epoch_')[0] + '.txt')
+        else:
+            config = os.path.join('ckp', 'config_' + exp_name + '.txt')
 
         # restore generator arch
         try:
-            if FLAGS.epoch_exp:
-                config = os.path.join('ckp','config_' + exp_name.split('_epoch_')[0] + '.txt')
-            else:
-                config = os.path.join('ckp', 'config_' + exp_name + '.txt')
-            EMB_DIM = restore_param_from_config(config, param= 'gen_emb_dim')
-            HIDDEN_DIM = restore_param_from_config(config, param= 'gen_hidden_dim')
+            EMB_DIM = int(restore_param_from_config(config, param= 'gen_emb_dim'))
+            HIDDEN_DIM = int(restore_param_from_config(config, param= 'gen_hidden_dim'))
         except:
             EMB_DIM = 32
             HIDDEN_DIM = 32
             print("WARNING: CONFIG FILE WAS NOT FOUND - USING DEFAULT CONFIG")
-        assert type(EMB_DIM) == int
-        assert type(HIDDEN_DIM) == int
+        
+        try:
+            TOKEN_TYPE = restore_param_from_config(config, param= 'base_token')
+            DATA_PATH = restore_param_from_config(config, param='dataset_path')
+        except ValueError:
+            TOKEN_TYPE = 'char'
+            DATA_PATH = './data/text8/text8'
+            print("WARNING: NEW CONFIGURATION WAS NOT FOUND - EVALUATING CHAR-BASED")
+
+        if use_real_world_data:
+            # split to train-valid-test
+            real_data_train_file = DATA_PATH + '-train'
+            real_data_valid_file = DATA_PATH + '-valid'
+            real_data_test_file = DATA_PATH + '-test'
+            real_data_dict_file = DATA_PATH + '-dict.json'
+            if not os.path.exists(real_data_train_file):
+                split_text8(DATA_PATH)
+            charmap, inv_charmap = create_real_data_dict(real_data_train_file, real_data_dict_file,TOKEN_TYPE)
+            vocab_size = len(charmap)
+        else:
+            gen_data_loader = Gen_Data_loader(BATCH_SIZE)
+            likelihood_data_loader = Gen_Data_loader(BATCH_SIZE)  # For testing
+            vocab_size = 5000
+            dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
         tf.reset_default_graph()
         generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
@@ -220,16 +223,15 @@ def main(FLAGS):
         #     print('Saving results...')
         #     np.save('SeqGan_' + exp_name + '_conv_results',results)
 
-
         print('###')
         print('Start Language Model Evaluation...')
-        test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH)
+        test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH,TOKEN_TYPE)
         if FLAGS.test:
             test_data_loader.create_batches(real_data_test_file)
-            print("USING TEXT8 TEST SET")
+            print("USING %s TEST SET"%TOKEN_TYPE.upper())
         else:
             test_data_loader.create_batches(real_data_valid_file)
-            print("USING TEXT8 VALID SET")
+            print("USING %s VALID SET"%TOKEN_TYPE.upper())
         BPC_direct = language_model_evaluation_direct(sess,generator, test_data_loader)
         print("[%0s] BPC_direct = %f"%(exp_name,BPC_direct))
 
@@ -247,7 +249,7 @@ def main(FLAGS):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="SeqGAN LM Test on Text8")
+    parser = argparse.ArgumentParser(description="SeqGAN LM Test on Text8/PTB")
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--epoch_exp', action='store_true')
     FLAGS = parser.parse_args()
