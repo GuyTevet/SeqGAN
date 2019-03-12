@@ -197,6 +197,8 @@ def main(FLAGS):
             assert vocab_size == 27 # SORRY FOR THE HARD CODING
         elif dataset_name == 'ptb' and base_token == 'word':
             assert vocab_size == 10001 # SORRY FOR THE HARD CODING
+        elif dataset_name == 'toy' and base_token == 'word':
+            assert vocab_size == 8
         else:
             raise TypeError
 
@@ -239,6 +241,12 @@ def main(FLAGS):
     log.write('pre-training...\n')
     for epoch in range(PRE_EPOCH_NUM):
         print("start epoch %0d" % epoch)
+
+        if epoch % FLAGS.save_each_epochs == 0:
+            print('#########################################################################')
+            print('saving model...')
+            save_file = os.path.join('.', 'ckp', EXPERIMENT_NAME + '_pretrain_epoch_%0d'%epoch , EXPERIMENT_NAME + '_pretrain_epoch_%0d'%epoch)
+            saver.save(sess, save_file)
 
         if use_real_world_data:
             gen_data_loader.create_batches(real_data_train_file,limit_num_samples=generated_num)
@@ -357,7 +365,7 @@ if __name__ == '__main__':
     #  General
     ######################################################################################
     parser.add_argument('experiment_name', type=str, help='experiment name')
-    parser.add_argument('--dataset_path', type=str, default='./data/text8/text8',  help='dataset path', choices=['./data/text8/text8', './data/ptb/ptb'])
+    parser.add_argument('--dataset_path', type=str, default='./data/text8/text8',  help='dataset path', choices=['./data/text8/text8', './data/ptb/ptb', './data/toy/toy'])
     parser.add_argument('--base_token', type=str, default='char', help='base token', choices=['char', 'word'])
     parser.add_argument('--num_epochs', type=int, default=200, help='number of adversarial epochs [200]')
     parser.add_argument('--seq_len', type=int, default=20, help='sequence length (must be >= 20 to fit disc arc) [20]')
