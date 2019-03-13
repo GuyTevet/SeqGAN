@@ -198,7 +198,9 @@ def main(FLAGS):
         elif dataset_name == 'ptb' and base_token == 'word':
             assert vocab_size == 10001 # SORRY FOR THE HARD CODING
         elif dataset_name == 'toy' and base_token == 'word':
-            assert vocab_size == 8
+            assert vocab_size == 8 # SORRY FOR THE HARD CODING
+        elif dataset_name == 'wt2' and base_token == 'word':
+            assert vocab_size == 33279 # SORRY FOR THE HARD CODING
         else:
             raise TypeError
 
@@ -365,7 +367,7 @@ if __name__ == '__main__':
     #  General
     ######################################################################################
     parser.add_argument('experiment_name', type=str, help='experiment name')
-    parser.add_argument('--dataset_path', type=str, default='./data/text8/text8',  help='dataset path', choices=['./data/text8/text8', './data/ptb/ptb', './data/toy/toy'])
+    parser.add_argument('--dataset_path', type=str, default='./data/text8/text8',  help='dataset path', choices=['./data/text8/text8', './data/ptb/ptb', './data/toy/toy', './data/wt2/wt2'])
     parser.add_argument('--base_token', type=str, default='char', help='base token', choices=['char', 'word'])
     parser.add_argument('--num_epochs', type=int, default=200, help='number of adversarial epochs [200]')
     parser.add_argument('--seq_len', type=int, default=20, help='sequence length (must be >= 20 to fit disc arc) [20]')
