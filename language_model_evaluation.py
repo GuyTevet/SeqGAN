@@ -75,7 +75,7 @@ def language_model_evaluation_direct(sess, tested_model, data_loader):
     data_loader.reset_pointer()
     BPC_list = []
 
-    for it in range(1): # range(data_loader.num_batch):
+    for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
         pred_one_hot, real_pred = tested_model.language_model_eval_step(sess, batch)
         real_pred = np.clip(real_pred,1e-20,1)

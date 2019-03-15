@@ -215,7 +215,7 @@ def main(FLAGS):
         vocab_size = 5000
         dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
-    generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, dropout_keep_prob=gen_dropout_keep_prob,num_recurrent_layers=gen_num_recurrent_layers)
+    generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, dropout_keep_prob=gen_dropout_keep_prob,num_recurrent_layers=gen_num_recurrent_layers, learning_rate=1)
 
     if not use_real_world_data:
         target_params = pickle.load(open('save/target_params.pkl'))
