@@ -60,14 +60,14 @@ def target_loss(sess, target_lstm, data_loader):
     return np.mean(nll)
 
 
-def pre_train_epoch(sess, trainable_model, data_loader):
+def pre_train_epoch(sess, trainable_model, data_loader, lr):
     # Pre-train the generator using MLE for one epoch
     supervised_g_losses = []
     data_loader.reset_pointer()
 
     for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
-        _, g_loss = trainable_model.pretrain_step(sess, batch)
+        _, g_loss = trainable_model.pretrain_step(sess, batch, lr)
         supervised_g_losses.append(g_loss)
 
     return np.mean(supervised_g_losses)
@@ -217,8 +217,7 @@ def main(FLAGS):
         dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN,
-                          dropout_keep_prob=gen_dropout_keep_prob,num_recurrent_layers=gen_num_recurrent_layers,
-                          learning_rate=gen_learning_rate)
+                          dropout_keep_prob=gen_dropout_keep_prob,num_recurrent_layers=gen_num_recurrent_layers)
 
     if not use_real_world_data:
         target_params = pickle.load(open('save/target_params.pkl'))
@@ -249,6 +248,10 @@ def main(FLAGS):
     for epoch in range(PRE_EPOCH_NUM):
         print("start epoch %0d" % epoch)
 
+        # update learning rate
+        if epoch > 5:
+            gen_learning_rate /= FLAGS.gen_learning_decay * 1.
+
         if epoch % FLAGS.save_each_epochs == 0:
             print('#########################################################################')
             print('saving model...')
@@ -258,7 +261,7 @@ def main(FLAGS):
         if use_real_world_data:
             gen_data_loader.create_batches(real_data_train_file,limit_num_samples=generated_num)
 
-        loss = pre_train_epoch(sess, generator, gen_data_loader)
+        loss = pre_train_epoch(sess, generator, gen_data_loader, gen_learning_rate)
         if epoch % 1 == 0:
             if use_real_world_data:
                 generate_real_data_samples(sess, generator, BATCH_SIZE, generated_num, eval_file + "_epoch_%0d.txt"%epoch ,inv_map, base_token)
@@ -311,7 +314,7 @@ def main(FLAGS):
         for it in range(1):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
-            feed = {generator.x: samples, generator.rewards: rewards}
+            feed = {generator.x: samples, generator.rewards: rewards, generator.learning_rate: 0.01}
             _ = sess.run(generator.g_updates, feed_dict=feed)
 
         # Test
@@ -389,7 +392,7 @@ if __name__ == '__main__':
     parser.add_argument('--gen_dropout_keep_prob', type=float, default=.75, help='dropout keep probability [0.75]')
     parser.add_argument('--gen_num_recurrent_layers', type=int, default=1, help='hidden state dimension of lstm cell [1]')
     parser.add_argument('--gen_learning_rate', type=float, default=0.01, help='initial learning rate [0.01]')
-    # parser.add_argument('--gen_learning_decay', type=float, default=1.2, help='learning rate decay factor [1.2]')
+    parser.add_argument('--gen_learning_decay', type=float, default=1., help='learning rate decay factor [1.0]')
 
     #########################################################################################
     #  Discriminator  Hyper-parameters

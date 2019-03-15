@@ -5,7 +5,7 @@ from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 class Generator(object):
     def __init__(self, num_emb, batch_size, emb_dim, hidden_dim,
                  sequence_length, start_token,
-                 learning_rate=0.01, reward_gamma=0.95,
+                 reward_gamma=0.95,
                  dropout_keep_prob = 1., num_recurrent_layers=1):
         self.num_emb = num_emb
         self.batch_size = batch_size
@@ -13,7 +13,7 @@ class Generator(object):
         self.hidden_dim = hidden_dim
         self.sequence_length = sequence_length
         self.start_token = tf.constant([start_token] * self.batch_size, dtype=tf.int32)
-        self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
+        self.learning_rate = tf.placeholder(tf.float32, [])
         self.reward_gamma = reward_gamma
         self.g_params = []
         self.d_params = []
@@ -193,8 +193,8 @@ class Generator(object):
         outputs = sess.run(self.gen_x)
         return outputs
 
-    def pretrain_step(self, sess, x):
-        outputs = sess.run([self.pretrain_updates, self.pretrain_loss], feed_dict={self.x: x})
+    def pretrain_step(self, sess, x, lr):
+        outputs = sess.run([self.pretrain_updates, self.pretrain_loss], feed_dict={self.x: x, self.learning_rate: lr})
         return outputs
 
     def language_model_eval_step(self, sess, x):

@@ -14,7 +14,6 @@ class ROLLOUT(object):
         self.hidden_dim = self.lstm.hidden_dim
         self.sequence_length = self.lstm.sequence_length
         self.start_token = tf.identity(self.lstm.start_token)
-        self.learning_rate = self.lstm.learning_rate
         self.dropout_keep_prob = self.lstm.dropout_keep_prob
         self.num_recurrent_layers = self.lstm.num_recurrent_layers
 
