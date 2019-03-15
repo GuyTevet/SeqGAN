@@ -5,7 +5,8 @@ from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 class Generator(object):
     def __init__(self, num_emb, batch_size, emb_dim, hidden_dim,
                  sequence_length, start_token,
-                 learning_rate=0.01, reward_gamma=0.95):
+                 learning_rate=0.01, reward_gamma=0.95,
+                 dropout_keep_prob = 1.):
         self.num_emb = num_emb
         self.batch_size = batch_size
         self.emb_dim = emb_dim
@@ -18,6 +19,7 @@ class Generator(object):
         self.d_params = []
         self.temperature = 1.0
         self.grad_clip = 5.0
+        self.dropout_keep_prob = dropout_keep_prob
 
         self.expected_reward = tf.Variable(tf.zeros([self.sequence_length]))
 
@@ -48,7 +50,8 @@ class Generator(object):
 
         def _g_recurrence(i, x_t, h_tm1, gen_o, gen_x):
             h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
-            o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
+            h_t_droped = tf.nn.dropout(h_t,keep_prob=self.dropout_keep_prob)
+            o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
             log_prob = tf.log(tf.nn.softmax(o_t))
             next_token = tf.cast(tf.reshape(tf.multinomial(log_prob, 1), [self.batch_size]), tf.int32)
             x_tp1 = tf.nn.embedding_lookup(self.g_embeddings, next_token)  # batch x emb_dim
@@ -76,8 +79,9 @@ class Generator(object):
         ta_emb_x = ta_emb_x.unstack(self.processed_x)
 
         def _pretrain_recurrence(i, x_t, h_tm1, g_predictions):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)
-            o_t = self.g_output_unit(h_t)
+            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            h_t_droped = tf.nn.dropout(h_t, keep_prob=self.dropout_keep_prob)
+            o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
             g_predictions = g_predictions.write(i, tf.nn.softmax(o_t))  # batch x vocab_size
             x_tp1 = ta_emb_x.read(i)
             return i + 1, x_tp1, h_t, g_predictions
@@ -132,7 +136,7 @@ class Generator(object):
             dynamic_size=False, infer_shape=True)
 
         def _g_lm_eval(i, x_t, h_tm1, g_pred_for_eval, g_pred_sampled):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple #no dropout here
             o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
             log_prob = tf.log(tf.nn.softmax(o_t))
             g_pred_for_eval = g_pred_for_eval.write(i, tf.nn.softmax(o_t))
