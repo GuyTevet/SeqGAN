@@ -147,6 +147,7 @@ def main(FLAGS):
     SEED = 88
     BATCH_SIZE = FLAGS.batch_size #64
     gen_dropout_keep_prob = FLAGS.gen_dropout_keep_prob # 0.75
+    gen_num_recurrent_layers = FLAGS.gen_num_recurrent_layers # 1
 
     #########################################################################################
     #  Discriminator  Hyper-parameters
@@ -214,7 +215,7 @@ def main(FLAGS):
         vocab_size = 5000
         dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
-    generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, dropout_keep_prob=gen_dropout_keep_prob)
+    generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, dropout_keep_prob=gen_dropout_keep_prob,num_recurrent_layers=gen_num_recurrent_layers)
 
     if not use_real_world_data:
         target_params = pickle.load(open('save/target_params.pkl'))
@@ -383,6 +384,7 @@ if __name__ == '__main__':
     parser.add_argument('--gen_hidden_dim', type=int, default=32, help='hidden state dimension of lstm cell [32]')
     parser.add_argument('--gen_pretrain_epoch_num', type=int, default=120, help='supervise (maximum likelihood estimation) epochs for generator [120]')
     parser.add_argument('--gen_dropout_keep_prob', type=float, default=.75, help='dropout keep probability [0.75]')
+    parser.add_argument('--gen_num_recurrent_layers', type=int, default=1, help='hidden state dimension of lstm cell [1]')
 
     #########################################################################################
     #  Discriminator  Hyper-parameters

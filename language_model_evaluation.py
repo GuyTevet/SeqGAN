@@ -75,7 +75,7 @@ def language_model_evaluation_direct(sess, tested_model, data_loader):
     data_loader.reset_pointer()
     BPC_list = []
 
-    for it in range(data_loader.num_batch):
+    for it in range(1): # range(data_loader.num_batch):
         batch = data_loader.next_batch()
         pred_one_hot, real_pred = tested_model.language_model_eval_step(sess, batch)
         real_pred = np.clip(real_pred,1e-20,1)
@@ -169,6 +169,12 @@ def main(FLAGS):
             DATA_PATH = './data/text8/text8'
             print("WARNING: NEW CONFIGURATION WAS NOT FOUND - EVALUATING CHAR-BASED")
 
+        try:
+            NUM_LAYERS = int(restore_param_from_config(config, param= 'gen_num_recurrent_layers'))
+        except ValueError:
+            NUM_LAYERS = 1
+            print("WARNING: NUM LAYERS NOT FOUND - USING 1")
+
         if use_real_world_data:
             # split to train-valid-test
             real_data_train_file = DATA_PATH + '-train'
@@ -186,7 +192,7 @@ def main(FLAGS):
             dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
         tf.reset_default_graph()
-        generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
+        generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN,num_recurrent_layers=NUM_LAYERS)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
@@ -231,6 +237,7 @@ def main(FLAGS):
             print("USING %s TEST SET"%TOKEN_TYPE.upper())
         else:
             test_data_loader.create_batches(real_data_valid_file)
+            # test_data_loader.create_batches(real_data_train_file)
             print("USING %s VALID SET"%TOKEN_TYPE.upper())
         BPC_direct = language_model_evaluation_direct(sess,generator, test_data_loader)
         print("[%0s] BPC_direct = %f"%(exp_name,BPC_direct))

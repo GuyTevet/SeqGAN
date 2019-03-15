@@ -6,7 +6,7 @@ class Generator(object):
     def __init__(self, num_emb, batch_size, emb_dim, hidden_dim,
                  sequence_length, start_token,
                  learning_rate=0.01, reward_gamma=0.95,
-                 dropout_keep_prob = 1.):
+                 dropout_keep_prob = 1., num_recurrent_layers=1):
         self.num_emb = num_emb
         self.batch_size = batch_size
         self.emb_dim = emb_dim
@@ -20,13 +20,15 @@ class Generator(object):
         self.temperature = 1.0
         self.grad_clip = 5.0
         self.dropout_keep_prob = dropout_keep_prob
+        self.num_recurrent_layers = num_recurrent_layers
 
         self.expected_reward = tf.Variable(tf.zeros([self.sequence_length]))
 
         with tf.variable_scope('generator'):
             self.g_embeddings = tf.Variable(self.init_matrix([self.num_emb, self.emb_dim]))
             self.g_params.append(self.g_embeddings)
-            self.g_recurrent_unit = self.create_recurrent_unit(self.g_params)  # maps h_tm1 to h_t for generator
+            # self.g_recurrent_unit = self.create_recurrent_unit(self.g_params)   # maps h_tm1 to h_t for generator
+            self.g_recurrent_unit = [self.create_recurrent_unit(self.g_params, i) for i in range(self.num_recurrent_layers)]
             self.g_output_unit = self.create_output_unit(self.g_params)  # maps h_t to o_t (output token logits)
 
         # placeholder definition
@@ -41,7 +43,7 @@ class Generator(object):
 
         # Initial states
         self.h0 = tf.zeros([self.batch_size, self.hidden_dim])
-        self.h0 = tf.stack([self.h0, self.h0])
+        self.h0 = [tf.stack([self.h0, self.h0])] * self.num_recurrent_layers
 
         gen_o = tensor_array_ops.TensorArray(dtype=tf.float32, size=self.sequence_length,
                                              dynamic_size=False, infer_shape=True)
@@ -49,9 +51,18 @@ class Generator(object):
                                              dynamic_size=False, infer_shape=True)
 
         def _g_recurrence(i, x_t, h_tm1, gen_o, gen_x):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
-            h_t_droped = tf.nn.dropout(h_t,keep_prob=self.dropout_keep_prob)
+            h_t = []
+            curr_x = x_t
+            for layer_i in range(self.num_recurrent_layers):
+                h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
+                curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
+                curr_hidden_state_drop = tf.nn.dropout(curr_hidden_state,keep_prob=self.dropout_keep_prob)
+                h_t_droped = tf.stack((curr_hidden_state_drop, curr_prev))
+                curr_x = curr_hidden_state_drop
             o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
+            # h_t = self.g_recurrent_unit[0](x_t, h_tm1[0])  # hidden_memory_tuple
+            # h_t_droped = tf.nn.dropout(h_t, keep_prob=self.dropout_keep_prob)
+            # o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
             log_prob = tf.log(tf.nn.softmax(o_t))
             next_token = tf.cast(tf.reshape(tf.multinomial(log_prob, 1), [self.batch_size]), tf.int32)
             x_tp1 = tf.nn.embedding_lookup(self.g_embeddings, next_token)  # batch x emb_dim
@@ -79,9 +90,18 @@ class Generator(object):
         ta_emb_x = ta_emb_x.unstack(self.processed_x)
 
         def _pretrain_recurrence(i, x_t, h_tm1, g_predictions):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
-            h_t_droped = tf.nn.dropout(h_t, keep_prob=self.dropout_keep_prob)
-            o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
+            h_t = []
+            curr_x = x_t
+            for layer_i in range(self.num_recurrent_layers):
+                h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
+                curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
+                curr_hidden_state_drop = tf.nn.dropout(curr_hidden_state,keep_prob=self.dropout_keep_prob)
+                h_t_droped = tf.stack((curr_hidden_state_drop, curr_prev))
+                curr_x = curr_hidden_state_drop
+            o_t = self.g_output_unit(h_t_droped)
+            # h_t = self.g_recurrent_unit[0](x_t, h_tm1)  # hidden_memory_tuple
+            # h_t_droped = tf.nn.dropout(h_t, keep_prob=self.dropout_keep_prob)
+            # o_t = self.g_output_unit(h_t_droped)  # batch x vocab , logits not prob
             g_predictions = g_predictions.write(i, tf.nn.softmax(o_t))  # batch x vocab_size
             x_tp1 = ta_emb_x.read(i)
             return i + 1, x_tp1, h_t, g_predictions
@@ -136,8 +156,17 @@ class Generator(object):
             dynamic_size=False, infer_shape=True)
 
         def _g_lm_eval(i, x_t, h_tm1, g_pred_for_eval, g_pred_sampled):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple #no dropout here
-            o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
+            h_t = []
+            curr_x = x_t
+            for layer_i in range(self.num_recurrent_layers):
+                h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
+                curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
+                # curr_hidden_state_drop = tf.nn.dropout(curr_hidden_state,keep_prob=self.dropout_keep_prob)
+                # h_t_droped = tf.stack((curr_hidden_state_drop, curr_prev))
+                curr_x = curr_hidden_state
+            o_t = self.g_output_unit(h_t[-1])
+            # h_t = self.g_recurrent_unit[0](x_t, h_tm1)  # hidden_memory_tuple #no dropout here
+            # o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
             log_prob = tf.log(tf.nn.softmax(o_t))
             g_pred_for_eval = g_pred_for_eval.write(i, tf.nn.softmax(o_t))
             next_token = tf.cast(tf.reshape(tf.multinomial(log_prob, 1), [self.batch_size]), tf.int32)
@@ -179,54 +208,54 @@ class Generator(object):
     def init_vector(self, shape):
         return tf.zeros(shape)
 
-    def create_recurrent_unit(self, params):
+    def create_recurrent_unit(self, params, num=0):
         # Weights and Bias for input and hidden tensor
-        self.Wi = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]))
-        self.Ui = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]))
-        self.bi = tf.Variable(self.init_matrix([self.hidden_dim]))
+        Wi = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wi_{}'.format(num))
+        Ui = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Ui_{}'.format(num))
+        bi = tf.Variable(self.init_matrix([self.hidden_dim]), name='bi_{}'.format(num))
 
-        self.Wf = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]))
-        self.Uf = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]))
-        self.bf = tf.Variable(self.init_matrix([self.hidden_dim]))
+        Wf = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wf_{}'.format(num))
+        Uf = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uf_{}'.format(num))
+        bf = tf.Variable(self.init_matrix([self.hidden_dim]), name='bf_{}'.format(num))
 
-        self.Wog = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]))
-        self.Uog = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]))
-        self.bog = tf.Variable(self.init_matrix([self.hidden_dim]))
+        Wog = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wog_{}'.format(num))
+        Uog = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uog_{}'.format(num))
+        bog = tf.Variable(self.init_matrix([self.hidden_dim]), name='bog_{}'.format(num))
 
-        self.Wc = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]))
-        self.Uc = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]))
-        self.bc = tf.Variable(self.init_matrix([self.hidden_dim]))
+        Wc = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wc_{}'.format(num))
+        Uc = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uc_{}'.format(num))
+        bc = tf.Variable(self.init_matrix([self.hidden_dim]), name='bc_{}'.format(num))
         params.extend([
-            self.Wi, self.Ui, self.bi,
-            self.Wf, self.Uf, self.bf,
-            self.Wog, self.Uog, self.bog,
-            self.Wc, self.Uc, self.bc])
+            Wi, Ui, bi,
+            Wf, Uf, bf,
+            Wog, Uog, bog,
+            Wc, Uc, bc])
 
         def unit(x, hidden_memory_tm1):
             previous_hidden_state, c_prev = tf.unstack(hidden_memory_tm1)
 
             # Input Gate
             i = tf.sigmoid(
-                tf.matmul(x, self.Wi) +
-                tf.matmul(previous_hidden_state, self.Ui) + self.bi
+                tf.matmul(x, Wi) +
+                tf.matmul(previous_hidden_state, Ui) + bi
             )
 
             # Forget Gate
             f = tf.sigmoid(
-                tf.matmul(x, self.Wf) +
-                tf.matmul(previous_hidden_state, self.Uf) + self.bf
+                tf.matmul(x, Wf) +
+                tf.matmul(previous_hidden_state, Uf) + bf
             )
 
             # Output Gate
             o = tf.sigmoid(
-                tf.matmul(x, self.Wog) +
-                tf.matmul(previous_hidden_state, self.Uog) + self.bog
+                tf.matmul(x, Wog) +
+                tf.matmul(previous_hidden_state, Uog) + bog
             )
 
             # New Memory Cell
             c_ = tf.nn.tanh(
-                tf.matmul(x, self.Wc) +
-                tf.matmul(previous_hidden_state, self.Uc) + self.bc
+                tf.matmul(x, Wc) +
+                tf.matmul(previous_hidden_state, Uc) + bc
             )
 
             # Final Memory cell
