@@ -200,7 +200,7 @@ def main(FLAGS):
         elif dataset_name == 'ptb' and base_token == 'word':
             assert vocab_size == 10001 # SORRY FOR THE HARD CODING
         elif dataset_name == 'toy' and base_token == 'word':
-            assert vocab_size == 9 # SORRY FOR THE HARD CODING
+            assert vocab_size == 8 # SORRY FOR THE HARD CODING
         elif dataset_name == 'wt2' and base_token == 'word':
             assert vocab_size == 33279 # SORRY FOR THE HARD CODING
         else:

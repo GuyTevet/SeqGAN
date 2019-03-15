@@ -209,53 +209,70 @@ class Generator(object):
         return tf.zeros(shape)
 
     def create_recurrent_unit(self, params, num=0):
+
+        if num == 0:
+            self.Wi = [None] * self.num_recurrent_layers
+            self.Ui = [None] * self.num_recurrent_layers
+            self.bi = [None] * self.num_recurrent_layers
+            self.Wf = [None] * self.num_recurrent_layers
+            self.Uf = [None] * self.num_recurrent_layers
+            self.bf = [None] * self.num_recurrent_layers
+            self.Wog = [None] * self.num_recurrent_layers
+            self.Uog = [None] * self.num_recurrent_layers
+            self.bog = [None] * self.num_recurrent_layers
+            self.Wc = [None] * self.num_recurrent_layers
+            self.Uc = [None] * self.num_recurrent_layers
+            self.bc = [None] * self.num_recurrent_layers
+
         # Weights and Bias for input and hidden tensor
-        Wi = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wi_{}'.format(num))
-        Ui = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Ui_{}'.format(num))
-        bi = tf.Variable(self.init_matrix([self.hidden_dim]), name='bi_{}'.format(num))
+        self.Wi[num] = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wi_{}'.format(num))
+        self.Ui[num] = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Ui_{}'.format(num))
+        self.bi[num] = tf.Variable(self.init_matrix([self.hidden_dim]), name='bi_{}'.format(num))
 
-        Wf = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wf_{}'.format(num))
-        Uf = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uf_{}'.format(num))
-        bf = tf.Variable(self.init_matrix([self.hidden_dim]), name='bf_{}'.format(num))
+        self.Wf[num] = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wf_{}'.format(num))
+        self.Uf[num] = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uf_{}'.format(num))
+        self.bf[num] = tf.Variable(self.init_matrix([self.hidden_dim]), name='bf_{}'.format(num))
 
-        Wog = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wog_{}'.format(num))
-        Uog = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uog_{}'.format(num))
-        bog = tf.Variable(self.init_matrix([self.hidden_dim]), name='bog_{}'.format(num))
+        self.Wog[num] = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wog_{}'.format(num))
+        self.Uog[num] = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uog_{}'.format(num))
+        self.bog[num] = tf.Variable(self.init_matrix([self.hidden_dim]), name='bog_{}'.format(num))
 
-        Wc = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wc_{}'.format(num))
-        Uc = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uc_{}'.format(num))
-        bc = tf.Variable(self.init_matrix([self.hidden_dim]), name='bc_{}'.format(num))
+        self.Wc[num] = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]), name='Wc_{}'.format(num))
+        self.Uc[num] = tf.Variable(self.init_matrix([self.hidden_dim, self.hidden_dim]), name='Uc_{}'.format(num))
+        self.bc[num] = tf.Variable(self.init_matrix([self.hidden_dim]), name='bc_{}'.format(num))
+
+
         params.extend([
-            Wi, Ui, bi,
-            Wf, Uf, bf,
-            Wog, Uog, bog,
-            Wc, Uc, bc])
+            self.Wi[num], self.Ui[num], self.bi[num],
+            self.Wf[num], self.Uf[num], self.bf[num],
+            self.Wog[num], self.Uog[num], self.bog[num],
+            self.Wc[num], self.Uc[num], self.bc[num]])
 
         def unit(x, hidden_memory_tm1):
             previous_hidden_state, c_prev = tf.unstack(hidden_memory_tm1)
 
             # Input Gate
             i = tf.sigmoid(
-                tf.matmul(x, Wi) +
-                tf.matmul(previous_hidden_state, Ui) + bi
+                tf.matmul(x, self.Wi[num]) +
+                tf.matmul(previous_hidden_state, self.Ui[num]) + self.bi[num]
             )
 
             # Forget Gate
             f = tf.sigmoid(
-                tf.matmul(x, Wf) +
-                tf.matmul(previous_hidden_state, Uf) + bf
+                tf.matmul(x, self.Wf[num]) +
+                tf.matmul(previous_hidden_state, self.Uf[num]) + self.bf[num]
             )
 
             # Output Gate
             o = tf.sigmoid(
-                tf.matmul(x, Wog) +
-                tf.matmul(previous_hidden_state, Uog) + bog
+                tf.matmul(x, self.Wog[num]) +
+                tf.matmul(previous_hidden_state, self.Uog[num]) + self.bog[num]
             )
 
             # New Memory Cell
             c_ = tf.nn.tanh(
-                tf.matmul(x, Wc) +
-                tf.matmul(previous_hidden_state, Uc) + bc
+                tf.matmul(x, self.Wc[num]) +
+                tf.matmul(previous_hidden_state, self.Uc[num]) + self.bc[num]
             )
 
             # Final Memory cell

@@ -15,9 +15,12 @@ class ROLLOUT(object):
         self.sequence_length = self.lstm.sequence_length
         self.start_token = tf.identity(self.lstm.start_token)
         self.learning_rate = self.lstm.learning_rate
+        self.dropout_keep_prob = self.lstm.dropout_keep_prob
+        self.num_recurrent_layers = self.lstm.num_recurrent_layers
 
         self.g_embeddings = tf.identity(self.lstm.g_embeddings)
-        self.g_recurrent_unit = self.create_recurrent_unit()  # maps h_tm1 to h_t for generator
+
+        self.g_recurrent_unit = [self.create_recurrent_unit(i) for i in range(self.num_recurrent_layers)] # maps h_tm1 to h_t for generator
         self.g_output_unit = self.create_output_unit()  # maps h_t to o_t (output token logits)
 
         #####################################################################################################
@@ -38,22 +41,37 @@ class ROLLOUT(object):
         #####################################################################################################
 
         self.h0 = tf.zeros([self.batch_size, self.hidden_dim])
-        self.h0 = tf.stack([self.h0, self.h0])
+        self.h0 = [tf.stack([self.h0, self.h0])] * self.num_recurrent_layers
 
         gen_x = tensor_array_ops.TensorArray(dtype=tf.int32, size=self.sequence_length,
                                              dynamic_size=False, infer_shape=True)
 
         # When current index i < given_num, use the provided tokens as the input at each time step
         def _g_recurrence_1(i, x_t, h_tm1, given_num, gen_x):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            # h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            h_t = []
+            curr_x = x_t
+            for layer_i in range(self.num_recurrent_layers):
+                h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
+                curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
+                curr_x = curr_hidden_state
             x_tp1 = ta_emb_x.read(i)
+
+
             gen_x = gen_x.write(i, ta_x.read(i))
             return i + 1, x_tp1, h_t, given_num, gen_x
 
         # When current index i >= given_num, start roll-out, use the output as time step t as the input at time step t+1
         def _g_recurrence_2(i, x_t, h_tm1, given_num, gen_x):
-            h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
-            o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
+            # h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
+            # o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
+            h_t = []
+            curr_x = x_t
+            for layer_i in range(self.num_recurrent_layers):
+                h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
+                curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
+                curr_x = curr_hidden_state
+            o_t = self.g_output_unit(h_t[-1])
             log_prob = tf.log(tf.nn.softmax(o_t))
             next_token = tf.cast(tf.reshape(tf.multinomial(log_prob, 1), [self.batch_size]), tf.int32)
             x_tp1 = tf.nn.embedding_lookup(self.g_embeddings, next_token)  # batch x emb_dim
@@ -102,49 +120,64 @@ class ROLLOUT(object):
         rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
         return rewards
 
-    def create_recurrent_unit(self):
+    def create_recurrent_unit(self, num):
+
+        if num == 0:
+            self.Wi = [None] * self.num_recurrent_layers
+            self.Ui = [None] * self.num_recurrent_layers
+            self.bi = [None] * self.num_recurrent_layers
+            self.Wf = [None] * self.num_recurrent_layers
+            self.Uf = [None] * self.num_recurrent_layers
+            self.bf = [None] * self.num_recurrent_layers
+            self.Wog = [None] * self.num_recurrent_layers
+            self.Uog = [None] * self.num_recurrent_layers
+            self.bog = [None] * self.num_recurrent_layers
+            self.Wc = [None] * self.num_recurrent_layers
+            self.Uc = [None] * self.num_recurrent_layers
+            self.bc = [None] * self.num_recurrent_layers
+
         # Weights and Bias for input and hidden tensor
-        self.Wi = tf.identity(self.lstm.Wi)
-        self.Ui = tf.identity(self.lstm.Ui)
-        self.bi = tf.identity(self.lstm.bi)
+        self.Wi[num] = tf.identity(self.lstm.Wi[num])
+        self.Ui[num] = tf.identity(self.lstm.Ui[num])
+        self.bi[num] = tf.identity(self.lstm.bi[num])
 
-        self.Wf = tf.identity(self.lstm.Wf)
-        self.Uf = tf.identity(self.lstm.Uf)
-        self.bf = tf.identity(self.lstm.bf)
+        self.Wf[num] = tf.identity(self.lstm.Wf[num])
+        self.Uf[num] = tf.identity(self.lstm.Uf[num])
+        self.bf[num] = tf.identity(self.lstm.bf[num])
 
-        self.Wog = tf.identity(self.lstm.Wog)
-        self.Uog = tf.identity(self.lstm.Uog)
-        self.bog = tf.identity(self.lstm.bog)
+        self.Wog[num] = tf.identity(self.lstm.Wog[num])
+        self.Uog[num] = tf.identity(self.lstm.Uog[num])
+        self.bog[num] = tf.identity(self.lstm.bog[num])
 
-        self.Wc = tf.identity(self.lstm.Wc)
-        self.Uc = tf.identity(self.lstm.Uc)
-        self.bc = tf.identity(self.lstm.bc)
+        self.Wc[num] = tf.identity(self.lstm.Wc[num])
+        self.Uc[num] = tf.identity(self.lstm.Uc[num])
+        self.bc[num] = tf.identity(self.lstm.bc[num])
 
         def unit(x, hidden_memory_tm1):
             previous_hidden_state, c_prev = tf.unstack(hidden_memory_tm1)
 
             # Input Gate
             i = tf.sigmoid(
-                tf.matmul(x, self.Wi) +
-                tf.matmul(previous_hidden_state, self.Ui) + self.bi
+                tf.matmul(x, self.Wi[num]) +
+                tf.matmul(previous_hidden_state, self.Ui[num]) + self.bi[num]
             )
 
             # Forget Gate
             f = tf.sigmoid(
-                tf.matmul(x, self.Wf) +
-                tf.matmul(previous_hidden_state, self.Uf) + self.bf
+                tf.matmul(x, self.Wf[num]) +
+                tf.matmul(previous_hidden_state, self.Uf[num]) + self.bf[num]
             )
 
             # Output Gate
             o = tf.sigmoid(
-                tf.matmul(x, self.Wog) +
-                tf.matmul(previous_hidden_state, self.Uog) + self.bog
+                tf.matmul(x, self.Wog[num]) +
+                tf.matmul(previous_hidden_state, self.Uog[num]) + self.bog[num]
             )
 
             # New Memory Cell
             c_ = tf.nn.tanh(
-                tf.matmul(x, self.Wc) +
-                tf.matmul(previous_hidden_state, self.Uc) + self.bc
+                tf.matmul(x, self.Wc[num]) +
+                tf.matmul(previous_hidden_state, self.Uc[num]) + self.bc[num]
             )
 
             # Final Memory cell
@@ -157,49 +190,49 @@ class ROLLOUT(object):
 
         return unit
 
-    def update_recurrent_unit(self):
+    def update_recurrent_unit(self,num):
         # Weights and Bias for input and hidden tensor
-        self.Wi = self.update_rate * self.Wi + (1 - self.update_rate) * tf.identity(self.lstm.Wi)
-        self.Ui = self.update_rate * self.Ui + (1 - self.update_rate) * tf.identity(self.lstm.Ui)
-        self.bi = self.update_rate * self.bi + (1 - self.update_rate) * tf.identity(self.lstm.bi)
+        self.Wi[num] = self.update_rate * self.Wi[num] + (1 - self.update_rate) * tf.identity(self.lstm.Wi[num])
+        self.Ui[num] = self.update_rate * self.Ui[num] + (1 - self.update_rate) * tf.identity(self.lstm.Ui[num])
+        self.bi[num] = self.update_rate * self.bi[num] + (1 - self.update_rate) * tf.identity(self.lstm.bi[num])
 
-        self.Wf = self.update_rate * self.Wf + (1 - self.update_rate) * tf.identity(self.lstm.Wf)
-        self.Uf = self.update_rate * self.Uf + (1 - self.update_rate) * tf.identity(self.lstm.Uf)
-        self.bf = self.update_rate * self.bf + (1 - self.update_rate) * tf.identity(self.lstm.bf)
+        self.Wf[num] = self.update_rate * self.Wf[num] + (1 - self.update_rate) * tf.identity(self.lstm.Wf[num])
+        self.Uf[num] = self.update_rate * self.Uf[num] + (1 - self.update_rate) * tf.identity(self.lstm.Uf[num])
+        self.bf[num] = self.update_rate * self.bf[num] + (1 - self.update_rate) * tf.identity(self.lstm.bf[num])
 
-        self.Wog = self.update_rate * self.Wog + (1 - self.update_rate) * tf.identity(self.lstm.Wog)
-        self.Uog = self.update_rate * self.Uog + (1 - self.update_rate) * tf.identity(self.lstm.Uog)
-        self.bog = self.update_rate * self.bog + (1 - self.update_rate) * tf.identity(self.lstm.bog)
+        self.Wog[num] = self.update_rate * self.Wog[num] + (1 - self.update_rate) * tf.identity(self.lstm.Wog[num])
+        self.Uog[num] = self.update_rate * self.Uog[num] + (1 - self.update_rate) * tf.identity(self.lstm.Uog[num])
+        self.bog[num] = self.update_rate * self.bog[num] + (1 - self.update_rate) * tf.identity(self.lstm.bog[num])
 
-        self.Wc = self.update_rate * self.Wc + (1 - self.update_rate) * tf.identity(self.lstm.Wc)
-        self.Uc = self.update_rate * self.Uc + (1 - self.update_rate) * tf.identity(self.lstm.Uc)
-        self.bc = self.update_rate * self.bc + (1 - self.update_rate) * tf.identity(self.lstm.bc)
+        self.Wc[num] = self.update_rate * self.Wc[num] + (1 - self.update_rate) * tf.identity(self.lstm.Wc[num])
+        self.Uc[num] = self.update_rate * self.Uc[num] + (1 - self.update_rate) * tf.identity(self.lstm.Uc[num])
+        self.bc[num] = self.update_rate * self.bc[num] + (1 - self.update_rate) * tf.identity(self.lstm.bc[num])
 
         def unit(x, hidden_memory_tm1):
             previous_hidden_state, c_prev = tf.unstack(hidden_memory_tm1)
 
             # Input Gate
             i = tf.sigmoid(
-                tf.matmul(x, self.Wi) +
-                tf.matmul(previous_hidden_state, self.Ui) + self.bi
+                tf.matmul(x, self.Wi[num]) +
+                tf.matmul(previous_hidden_state, self.Ui[num]) + self.bi[num]
             )
 
             # Forget Gate
             f = tf.sigmoid(
-                tf.matmul(x, self.Wf) +
-                tf.matmul(previous_hidden_state, self.Uf) + self.bf
+                tf.matmul(x, self.Wf[num]) +
+                tf.matmul(previous_hidden_state, self.Uf[num]) + self.bf[num]
             )
 
             # Output Gate
             o = tf.sigmoid(
-                tf.matmul(x, self.Wog) +
-                tf.matmul(previous_hidden_state, self.Uog) + self.bog
+                tf.matmul(x, self.Wog[num]) +
+                tf.matmul(previous_hidden_state, self.Uog[num]) + self.bog[num]
             )
 
             # New Memory Cell
             c_ = tf.nn.tanh(
-                tf.matmul(x, self.Wc) +
-                tf.matmul(previous_hidden_state, self.Uc) + self.bc
+                tf.matmul(x, self.Wc[num]) +
+                tf.matmul(previous_hidden_state, self.Uc[num]) + self.bc[num]
             )
 
             # Final Memory cell
@@ -240,5 +273,5 @@ class ROLLOUT(object):
 
     def update_params(self):
         self.g_embeddings = tf.identity(self.lstm.g_embeddings)
-        self.g_recurrent_unit = self.update_recurrent_unit()
+        self.g_recurrent_unit = [self.update_recurrent_unit(i) for i in range(self.num_recurrent_layers)]
         self.g_output_unit = self.update_output_unit()
