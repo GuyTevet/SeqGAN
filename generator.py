@@ -52,7 +52,7 @@ class Generator(object):
 
         def _g_recurrence(i, x_t, h_tm1, gen_o, gen_x):
             h_t = []
-            curr_x = x_t
+            curr_x = tf.nn.dropout(x_t,keep_prob=self.dropout_keep_prob) #x_t
             for layer_i in range(self.num_recurrent_layers):
                 h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
                 curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
@@ -91,7 +91,7 @@ class Generator(object):
 
         def _pretrain_recurrence(i, x_t, h_tm1, g_predictions):
             h_t = []
-            curr_x = x_t
+            curr_x = tf.nn.dropout(x_t, keep_prob=self.dropout_keep_prob)  # x_t
             for layer_i in range(self.num_recurrent_layers):
                 h_t.append(self.g_recurrent_unit[layer_i](curr_x, h_tm1[layer_i]))  # hidden_memory_tuple
                 curr_hidden_state, curr_prev = tf.unstack(h_t[-1])
