@@ -203,7 +203,8 @@ class Generator(object):
         return outputs
 
     def init_matrix(self, shape):
-        return tf.random_normal(shape, stddev=0.1)
+        return tf.random_uniform(shape, minval=-0.05, maxval=0.05)
+        # return tf.random_normal(shape, stddev=0.1)
 
     def init_vector(self, shape):
         return tf.zeros(shape)
