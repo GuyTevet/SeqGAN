@@ -18,7 +18,7 @@ BATCH_SIZE = 64
 SEED = 88
 START_TOKEN = 0
 use_real_world_data = True
-SEQ_LENGTH = 1000 #200
+SEQ_LENGTH = 100 #1000 #200
 
 
 def restore_param_from_config(config_file,param):
@@ -154,6 +154,7 @@ def main(FLAGS):
 
         # restore generator arch
         try:
+            EXPERIMENT_NAME = restore_param_from_config(config, param= 'experiment_name')
             EMB_DIM = int(restore_param_from_config(config, param= 'gen_emb_dim'))
             HIDDEN_DIM = int(restore_param_from_config(config, param= 'gen_hidden_dim'))
         except:
@@ -229,6 +230,12 @@ def main(FLAGS):
         #     print('Saving results...')
         #     np.save('SeqGan_' + exp_name + '_conv_results',results)
 
+        if FLAGS.dump_samples:
+            print('###')
+            print('Saving samples file...')
+            generate_real_data_samples(sess, generator, BATCH_SIZE, BATCH_SIZE, "save/lm_eval_file_%0s.txt"%EXPERIMENT_NAME,
+                                       inv_charmap, TOKEN_TYPE)
+
         print('###')
         print('Start Language Model Evaluation...')
         test_data_loader = Gen_Data_loader_text(BATCH_SIZE,charmap,inv_charmap,SEQ_LENGTH,TOKEN_TYPE)
@@ -259,6 +266,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SeqGAN LM Test on Text8/PTB")
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--epoch_exp', action='store_true')
+    parser.add_argument('--dump_samples', action='store_true')
     FLAGS = parser.parse_args()
 
     main(FLAGS)
