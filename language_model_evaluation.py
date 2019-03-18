@@ -18,7 +18,7 @@ BATCH_SIZE = 64
 SEED = 88
 START_TOKEN = 0
 use_real_world_data = True
-SEQ_LENGTH = 100 #1000 #200
+SEQ_LENGTH = 1000 #1000 #200
 
 
 def restore_param_from_config(config_file,param):
